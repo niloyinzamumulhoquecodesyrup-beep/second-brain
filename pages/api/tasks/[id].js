@@ -8,18 +8,20 @@ async function handler(req, res) {
   const { id } = req.query
 
   if (req.method === 'PUT') {
-    const { title, content } = req.body || {}
+    const { title, done, due_date } = req.body || {}
     const { rows } = await pool.query(
-      `UPDATE packets SET
+      `UPDATE tasks SET
         title = COALESCE($1, title),
-        content = COALESCE($2, content)
-       WHERE id = $3 AND user_id = $4 RETURNING *`,
-      [title, content, id, userId]
+        done = COALESCE($2, done),
+        due_date = COALESCE($3, due_date),
+        completed_at = CASE WHEN $2 = true THEN now() WHEN $2 = false THEN NULL ELSE completed_at END
+       WHERE id = $4 AND user_id = $5 RETURNING *`,
+      [title, done, due_date, id, userId]
     )
     if (!rows[0]) return res.status(404).json({ error: 'Not found' })
     return res.status(200).json(rows[0])
   } else if (req.method === 'DELETE') {
-    const { rowCount } = await pool.query('DELETE FROM packets WHERE id=$1 AND user_id=$2', [id, userId])
+    const { rowCount } = await pool.query('DELETE FROM tasks WHERE id=$1 AND user_id=$2', [id, userId])
     if (!rowCount) return res.status(404).json({ error: 'Not found' })
     return res.status(204).end()
   } else {

@@ -51,7 +51,7 @@ export default function Dashboard({ user }) {
             ))}
           </div>
 
-          <div className="mb-10 grid gap-4 md:grid-cols-3">
+          <div className="mb-10 grid gap-4 md:grid-cols-4">
             <div className="card p-5">
               <p className="label mb-2">Knowledge assets</p>
               <p className="font-serif text-3xl font-light text-white">{stats.totalNotes}</p>
@@ -65,7 +65,12 @@ export default function Dashboard({ user }) {
             <div className="card p-5">
               <p className="label mb-2">Connections</p>
               <p className="font-serif text-3xl font-light text-white">{stats.links}</p>
-              <p className="mt-1 text-xs text-mist-400">note-to-note links · {stats.packets} packets shipped</p>
+              <p className="mt-1 text-xs text-mist-400">note-to-note links · {stats.packets} packets saved</p>
+            </div>
+            <div className="card p-5">
+              <p className="label mb-2">Open tasks</p>
+              <p className="font-serif text-3xl font-light text-white">{stats.tasksOpen}</p>
+              <p className="mt-1 text-xs text-mist-400">{stats.tasksDone} completed</p>
             </div>
           </div>
 
