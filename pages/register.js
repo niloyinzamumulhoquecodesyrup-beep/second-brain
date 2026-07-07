@@ -3,19 +3,30 @@ import { useRouter } from 'next/router'
 import Link from 'next/link'
 import { getSessionFromReq } from '../lib/auth'
 
-export default function Login() {
+export default function Register() {
   const router = useRouter()
   const [email, setEmail] = useState('')
   const [password, setPassword] = useState('')
+  const [confirm, setConfirm] = useState('')
   const [error, setError] = useState('')
   const [loading, setLoading] = useState(false)
 
   async function submit(e) {
     e.preventDefault()
     setError('')
+
+    if (password !== confirm) {
+      setError('Passwords do not match')
+      return
+    }
+    if (password.length < 8) {
+      setError('Password must be at least 8 characters')
+      return
+    }
+
     setLoading(true)
     try {
-      const res = await fetch('/api/auth/login', {
+      const res = await fetch('/api/auth/register', {
         method: 'POST',
         headers: { 'content-type': 'application/json' },
         body: JSON.stringify({ email, password })
@@ -24,7 +35,7 @@ export default function Login() {
         router.push('/')
       } else {
         const data = await res.json().catch(() => ({}))
-        setError(data.error || 'Login failed')
+        setError(data.error || 'Registration failed')
       }
     } catch (err) {
       setError('Something went wrong')
@@ -40,8 +51,8 @@ export default function Login() {
           <div className="mx-auto mb-4 flex h-11 w-11 items-center justify-center rounded-full border border-emerald-400/50 font-serif text-sm text-emerald-300">
             SB
           </div>
-          <p className="label mb-2">Welcome back</p>
-          <h1 className="font-serif text-4xl font-light text-white">Second Brain</h1>
+          <p className="label mb-2">Get started</p>
+          <h1 className="font-serif text-4xl font-light text-white">Create your account</h1>
         </div>
 
         <form onSubmit={submit} className="card space-y-4 p-7">
@@ -49,7 +60,7 @@ export default function Login() {
             <label className="mb-1.5 block text-xs uppercase tracking-wider text-mist-400">Email</label>
             <input
               className="input"
-              type="text"
+              type="email"
               autoComplete="username"
               value={email}
               onChange={e => setEmail(e.target.value)}
@@ -62,9 +73,21 @@ export default function Login() {
             <input
               className="input"
               type="password"
-              autoComplete="current-password"
+              autoComplete="new-password"
               value={password}
               onChange={e => setPassword(e.target.value)}
+              placeholder="At least 8 characters"
+              required
+            />
+          </div>
+          <div>
+            <label className="mb-1.5 block text-xs uppercase tracking-wider text-mist-400">Confirm password</label>
+            <input
+              className="input"
+              type="password"
+              autoComplete="new-password"
+              value={confirm}
+              onChange={e => setConfirm(e.target.value)}
               placeholder="••••••••"
               required
             />
@@ -73,14 +96,14 @@ export default function Login() {
           {error && <p className="text-sm text-red-400">{error}</p>}
 
           <button type="submit" disabled={loading} className="btn-primary w-full !py-2.5">
-            {loading ? 'Signing in…' : 'Sign in'}
+            {loading ? 'Creating account…' : 'Create account'}
           </button>
         </form>
 
         <p className="mt-6 text-center text-xs text-mist-400">
-          No account yet?{' '}
-          <Link href="/register" className="text-emerald-400 hover:underline">
-            Create one
+          Already have an account?{' '}
+          <Link href="/login" className="text-emerald-400 hover:underline">
+            Sign in
           </Link>
         </p>
       </div>

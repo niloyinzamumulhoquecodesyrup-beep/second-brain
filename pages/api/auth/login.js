@@ -1,29 +1,10 @@
 import bcrypt from 'bcryptjs'
 import { hasDb, getPool } from '../../../lib/db'
 import { createSessionToken, serializeSessionCookie } from '../../../lib/auth'
+import { isRateLimited, recordAttempt, requestIp } from '../../../lib/rateLimit'
 
 const MAX_ATTEMPTS = 10
 const WINDOW_MS = 15 * 60 * 1000
-const attempts = globalThis.__loginAttempts || (globalThis.__loginAttempts = new Map())
-
-function isRateLimited(key) {
-  const entry = attempts.get(key)
-  if (!entry) return false
-  if (Date.now() - entry.first > WINDOW_MS) {
-    attempts.delete(key)
-    return false
-  }
-  return entry.count >= MAX_ATTEMPTS
-}
-
-function recordFailure(key) {
-  const entry = attempts.get(key)
-  if (!entry || Date.now() - entry.first > WINDOW_MS) {
-    attempts.set(key, { count: 1, first: Date.now() })
-  } else {
-    entry.count += 1
-  }
-}
 
 export default async function handler(req, res) {
   if (req.method !== 'POST') {
@@ -32,8 +13,8 @@ export default async function handler(req, res) {
   }
   if (!hasDb()) return res.status(500).json({ error: 'Database not configured' })
 
-  const ip = (req.headers['x-forwarded-for'] || req.socket.remoteAddress || 'unknown').toString()
-  if (isRateLimited(ip)) {
+  const ip = requestIp(req)
+  if (isRateLimited('login', ip, MAX_ATTEMPTS, WINDOW_MS)) {
     return res.status(429).json({ error: 'Too many attempts. Try again later.' })
   }
 
@@ -47,13 +28,13 @@ export default async function handler(req, res) {
     const { rows } = await pool.query('SELECT id, email, password_hash FROM users WHERE lower(email) = lower($1)', [email])
     const user = rows[0]
     if (!user) {
-      recordFailure(ip)
+      recordAttempt('login', ip, WINDOW_MS)
       return res.status(401).json({ error: 'Invalid email or password' })
     }
 
     const ok = await bcrypt.compare(password, user.password_hash)
     if (!ok) {
-      recordFailure(ip)
+      recordAttempt('login', ip, WINDOW_MS)
       return res.status(401).json({ error: 'Invalid email or password' })
     }
 
