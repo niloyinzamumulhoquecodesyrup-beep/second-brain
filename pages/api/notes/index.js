@@ -1,6 +1,10 @@
-import pool from '../../../lib/db'
+import { hasDb, getPool } from 'lib/db'
 
 export default async function handler(req, res) {
+  if (!hasDb()) return res.status(500).json({ error: 'Database not configured' })
+
+  const pool = getPool()
+
   if (req.method === 'GET') {
     try {
       const { rows } = await pool.query('SELECT * FROM notes ORDER BY created_at DESC')

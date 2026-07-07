@@ -4,11 +4,19 @@ export default function Express() {
   const [notes, setNotes] = useState([])
   const [selectedId, setSelectedId] = useState(null)
   const [packetTitle, setPacketTitle] = useState('')
+  const [packets, setPackets] = useState([])
 
   async function load() {
     const res = await fetch('/api/notes')
+    if (!res.ok) return
     const data = await res.json()
     setNotes(data)
+
+    const resp = await fetch('/api/packets')
+    if (resp.ok) {
+      const ps = await resp.json()
+      setPackets(ps)
+    }
   }
 
   useEffect(()=>{ load() },[])
@@ -20,6 +28,10 @@ export default function Express() {
     if (res.ok) {
       alert('Packet created')
       setPacketTitle('')
+      load()
+    } else {
+      const err = await res.json()
+      alert('Error: ' + (err.error || res.status))
     }
   }
 
@@ -41,6 +53,14 @@ export default function Express() {
           <h4>Create intermediate packet</h4>
           <input placeholder="Packet title (optional)" value={packetTitle} onChange={e=>setPacketTitle(e.target.value)} style={{width:'100%',marginBottom:8}} />
           <button onClick={createPacket}>Create Packet from Note</button>
+
+          <h4 style={{marginTop:20}}>Packets</h4>
+          {packets.map(p=> (
+            <div key={p.id} style={{border:'1px solid #eee',padding:8,marginBottom:8}}>
+              <strong>{p.title}</strong>
+              <div style={{fontSize:13}}>{(p.content||'').slice(0,300)}</div>
+            </div>
+          ))}
         </div>
       </div>
     </div>

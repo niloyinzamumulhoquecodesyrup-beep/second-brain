@@ -1,6 +1,9 @@
-import pool from '../../lib/db'
+import { hasDb, getPool } from 'lib/db'
 
 export default async function handler(req, res) {
+  if (!hasDb()) return res.status(500).json({ error: 'Database not configured' })
+  const pool = getPool()
+
   if (req.method === 'POST') {
     const { note_id, title, content } = req.body
     if (!note_id) return res.status(400).json({ error: 'note_id required' })

@@ -1,6 +1,9 @@
-import pool from '../../../lib/db'
+import { hasDb, getPool } from 'lib/db'
 
 export default async function handler(req, res) {
+  if (!hasDb()) return res.status(500).json({ error: 'Database not configured' })
+  const pool = getPool()
+
   const { id } = req.query
   if (req.method === 'GET') {
     const { rows } = await pool.query('SELECT * FROM notes WHERE id=$1', [id])
