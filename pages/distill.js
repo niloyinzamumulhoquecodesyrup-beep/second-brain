@@ -1,9 +1,14 @@
 import { useEffect, useState } from 'react'
+import Layout from '../components/Layout'
+import ParaBadge from '../components/ParaBadge'
+import { requireSessionSSR } from '../lib/pageAuth'
 
-export default function Distill() {
+export default function Distill({ user }) {
   const [notes, setNotes] = useState([])
   const [selected, setSelected] = useState(null)
   const [summary, setSummary] = useState('')
+  const [saving, setSaving] = useState(false)
+  const [filter, setFilter] = useState('all')
 
   async function load() {
     const res = await fetch('/api/notes')
@@ -11,7 +16,7 @@ export default function Distill() {
     setNotes(data)
   }
 
-  useEffect(()=>{ load() },[])
+  useEffect(() => { load() }, [])
 
   function open(n) {
     setSelected(n)
@@ -19,38 +24,89 @@ export default function Distill() {
   }
 
   async function saveSummary() {
-    if(!selected) return
-    await fetch('/api/notes/' + selected.id, { method:'PUT', headers:{'content-type':'application/json'}, body: JSON.stringify({ executive_summary: summary, distilled: true }) })
-    load()
-    alert('Saved')
+    if (!selected) return
+    setSaving(true)
+    const res = await fetch('/api/notes/' + selected.id, {
+      method: 'PUT',
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({ executive_summary: summary, distilled: summary.trim().length > 0 })
+    })
+    setSaving(false)
+    if (res.ok) {
+      const updated = await res.json()
+      setSelected(updated)
+      setNotes(prev => prev.map(n => (n.id === updated.id ? updated : n)))
+    }
   }
 
+  const visible = notes.filter(n => (filter === 'distilled' ? n.distilled : filter === 'pending' ? !n.distilled : true))
+
   return (
-    <div style={{padding:24}}>
-      <h2>Distill</h2>
-      <div style={{display:'flex',gap:12}}>
-        <div style={{width:300}}>
-          <h4>Notes</h4>
-          {notes.map(n=> (
-            <div key={n.id} style={{borderBottom:'1px solid #eee',padding:8,cursor:'pointer'}} onClick={()=>open(n)}>
-              <strong>{n.title}</strong>
-              <div style={{fontSize:12}}>{n.executive_summary ? '(distilled)' : ''}</div>
-            </div>
+    <Layout user={user}>
+      <p className="label mb-2">Distill</p>
+      <h1 className="mb-2 font-serif text-4xl font-light text-white">Refine to the essence</h1>
+      <p className="mb-8 max-w-2xl text-sm text-mist-400">
+        Read → highlight → bold → summarize. Write an executive summary of only what matters — the most distilled
+        version becomes the most accessible one later.
+      </p>
+
+      <div className="mb-5 flex gap-2">
+        {['all', 'pending', 'distilled'].map(f => (
+          <button
+            key={f}
+            onClick={() => setFilter(f)}
+            className={`chip capitalize ${filter === f ? 'border-emerald-400/50 text-emerald-300' : ''}`}
+          >
+            {f}
+          </button>
+        ))}
+      </div>
+
+      <div className="grid gap-6 lg:grid-cols-3">
+        <div className="card scrollbar-thin overflow-y-auto p-2" style={{ maxHeight: 600 }}>
+          {visible.length === 0 && <p className="p-4 text-sm text-mist-400">Nothing to distill yet.</p>}
+          {visible.map(n => (
+            <button
+              key={n.id}
+              onClick={() => open(n)}
+              className={`block w-full rounded-md p-3 text-left transition hover:bg-ink-800 ${selected?.id === n.id ? 'bg-ink-800' : ''}`}
+            >
+              <p className="truncate text-sm text-mist-100">{n.title}</p>
+              <div className="mt-1 flex items-center gap-2">
+                <ParaBadge para={n.para} />
+                {n.distilled && <span className="text-[10px] uppercase tracking-wide text-emerald-400">Distilled</span>}
+              </div>
+            </button>
           ))}
         </div>
-        <div style={{flex:1}}>
+
+        <div className="card p-6 lg:col-span-2">
           {selected ? (
             <div>
-              <h3>{selected.title}</h3>
-              <div style={{marginBottom:8}}><em>{(selected.content||'').slice(0,400)}</em></div>
-              <textarea value={summary} onChange={e=>setSummary(e.target.value)} rows={8} style={{width:'100%'}} placeholder="Write executive summary here"></textarea>
-              <div style={{marginTop:8}}>
-                <button onClick={saveSummary}>Save Summary</button>
-              </div>
+              <h3 className="font-serif text-2xl text-white">{selected.title}</h3>
+              <p className="mt-3 whitespace-pre-wrap text-sm leading-relaxed text-mist-300">
+                {(selected.content || '').slice(0, 1200)}
+              </p>
+              <label className="mb-1.5 mt-6 block text-xs uppercase tracking-wider text-mist-400">Executive summary</label>
+              <textarea
+                className="input min-h-[160px]"
+                value={summary}
+                onChange={e => setSummary(e.target.value)}
+                placeholder="Only what feels important, in a few sentences."
+              />
+              <button onClick={saveSummary} disabled={saving} className="btn-primary mt-4">
+                {saving ? 'Saving…' : 'Save summary'}
+              </button>
             </div>
-          ) : <div>Select a note to distill.</div>}
+          ) : (
+            <p className="text-sm text-mist-400">Select a note to distill.</p>
+          )}
         </div>
       </div>
-    </div>
+    </Layout>
   )
+}
+
+export async function getServerSideProps(context) {
+  return requireSessionSSR(context)
 }

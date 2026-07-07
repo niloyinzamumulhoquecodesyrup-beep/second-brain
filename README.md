@@ -1,34 +1,44 @@
-# Second Brain - Minimal Next.js app
+# Second Brain
 
-This repository contains a minimal Next.js "Second Brain" web app (Capture / Organize (PARA) / Distill / Express) backed by Postgres.
+A private, single-user "second brain" web app built around the CODE method (Capture / Organize / Distill /
+Express) and the PARA system (Projects / Areas / Resources / Archives). Next.js (pages router) + Postgres
+(Supabase), with a password-protected login gating every page and API route.
 
-Important security note
-- Do NOT commit your real DATABASE_URL or password into the repository. Use `.env.local` (which is gitignored) with the real value.
+## Features
 
-Quick start
-1. npm install
-2. Create a file `.env.local` and set:
+- **Capture** — quick-add notes with tags, a PARA bucket, and an optional source URL. Reference other notes
+  inline with `[[Note Title]]`.
+- **Organize** — a PARA board (Projects / Areas / Resources / Archives) with search and tag filtering.
+- **Distill** — write an executive summary for any note; tracks which notes are "distilled".
+- **Express** — turn notes into intermediate packets (small, checkable next actions) and mark projects complete.
+- **Connections** — `[[Title]]` references are parsed automatically into a `note_links` table, powering
+  backlinks ("Linked from") on every note's detail page.
+- **Auth** — a single account, seeded directly into Postgres (bcrypt-hashed password). Sessions are signed JWTs
+  in an httpOnly cookie. Every page uses `getServerSideProps` to redirect to `/login` if there's no valid
+  session; every API route uses the same check server-side.
 
-   DATABASE_URL=postgresql://postgres:<YOUR_PASSWORD>@aws-1-ap-south-1.pooler.supabase.com:6543/postgres
+## Setup
 
-3. Run the migration SQL to create tables:
+1. `npm install`
+2. Copy `.env.example` to `.env.local` and fill in:
+   - `DATABASE_URL` — your Postgres connection string (Supabase pooler works well)
+   - `SESSION_SECRET` — a long random string (`node -e "console.log(require('crypto').randomBytes(48).toString('hex'))"`)
+   - `SEED_EMAIL` / `SEED_PASSWORD` — only needed to run the seed script below
+3. Create the schema: `npm run migrate`
+4. Create your account: `npm run seed:user` (reads `SEED_EMAIL` / `SEED_PASSWORD` from `.env.local`, upserts a
+   bcrypt-hashed row into `users`). Re-run any time to rotate your password.
+5. `npm run dev` and open http://localhost:3000 — you'll land on `/login`.
 
-   psql "$DATABASE_URL" -f migrations/001_init.sql
+## Deployment
 
-   (If you are using Supabase, you can also run the SQL in the Supabase SQL editor.)
+This app needs a Node.js server (API routes + SSR), so it won't run on GitHub Pages. Vercel is the simplest
+target — set the same three env vars (`DATABASE_URL`, `SESSION_SECRET`, plus run `seed:user` once locally
+against the prod database) in the project settings.
 
-4. npm run dev
-5. Open http://localhost:3000
+## Security notes
 
-Notes on deployment
-- You requested GitHub Pages. GitHub Pages serves static sites and won't host a server-rendered Next.js app with API routes and a Postgres connection.
-- Recommended: deploy to Vercel (supports Next.js) or Netlify / Render. The README includes simple Vercel instructions.
-- If you truly need GitHub Pages, we can add a static export (`next export`) and publish the generated static files to the `gh-pages` branch or `docs/` folder. This is a read-only frontend; API routes and DB functionality will not work on GitHub Pages.
-
-What's included
-- pages/: simple pages for capture, organize (PARA), distill, express
-- pages/api/: API routes for notes, PARA moves, and packets
-- lib/db.js: pg Pool wrapper using DATABASE_URL
-- migrations/001_init.sql: create tables
-
-If you want, I can push the static export to the `gh-pages` branch after you confirm you accept the reduced static-only limitations for GitHub Pages.
+- Never commit `.env.local` — it holds your live database credentials and session secret.
+- The login endpoint rate-limits repeated failed attempts per IP (10 per 15 minutes).
+- All pages set `noindex, nofollow` and the app sends baseline security headers (`X-Frame-Options`,
+  `X-Content-Type-Options`, etc.) via `next.config.js`.
+- To change your password later, update `SEED_PASSWORD` in `.env.local` and re-run `npm run seed:user`.

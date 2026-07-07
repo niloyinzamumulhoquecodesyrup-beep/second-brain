@@ -1,14 +1,22 @@
-import { hasDb, getPool } from 'lib/db'
+import { hasDb, getPool } from '../../lib/db'
+import { requireAuth } from '../../lib/withAuth'
 
-export default async function handler(req, res) {
+async function handler(req, res) {
   if (!hasDb()) return res.status(500).json({ error: 'Database not configured' })
   const pool = getPool()
+  const userId = req.user.id
 
   if (req.method === 'POST') {
-    const { note_id, title, content } = req.body
+    const { note_id, title, content } = req.body || {}
     if (!note_id) return res.status(400).json({ error: 'note_id required' })
     try {
-      const { rows } = await pool.query('INSERT INTO packets (note_id, title, content) VALUES ($1,$2,$3) RETURNING *', [note_id, title || null, content || null])
+      const owned = await pool.query('SELECT id FROM notes WHERE id=$1 AND user_id=$2', [note_id, userId])
+      if (!owned.rows[0]) return res.status(404).json({ error: 'Note not found' })
+
+      const { rows } = await pool.query(
+        'INSERT INTO packets (user_id, note_id, title, content) VALUES ($1,$2,$3,$4) RETURNING *',
+        [userId, note_id, title || null, content || null]
+      )
       return res.status(201).json(rows[0])
     } catch (err) {
       console.error(err)
@@ -16,14 +24,16 @@ export default async function handler(req, res) {
     }
   } else if (req.method === 'GET') {
     try {
-      const { rows } = await pool.query('SELECT * FROM packets ORDER BY created_at DESC')
+      const { rows } = await pool.query('SELECT * FROM packets WHERE user_id=$1 ORDER BY created_at DESC', [userId])
       return res.status(200).json(rows)
     } catch (err) {
       console.error(err)
       return res.status(500).json({ error: 'db error' })
     }
   } else {
-    res.setHeader('Allow', ['GET','POST'])
+    res.setHeader('Allow', ['GET', 'POST'])
     res.status(405).end()
   }
 }
+
+export default requireAuth(handler)

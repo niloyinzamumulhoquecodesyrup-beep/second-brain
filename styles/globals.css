@@ -1,3 +1,58 @@
-body { font-family: system-ui, -apple-system, 'Segoe UI', Roboto, 'Helvetica Neue', Arial; color:#111 }
-input, textarea { font-family: inherit; padding:8px; border:1px solid #ddd; border-radius:6px }
-button { padding:8px 12px; border-radius:6px; border:1px solid #888; background:#f5f5f5 }
+@import url('https://fonts.googleapis.com/css2?family=Cormorant+Garamond:ital,wght@0,300;0,400;0,500;0,600;1,400;1,500&family=Inter:wght@400;500;600;700&display=swap');
+
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+html {
+  background: #050607;
+}
+
+body {
+  @apply bg-ink-950 text-mist-100 antialiased;
+  font-family: 'Inter', system-ui, -apple-system, sans-serif;
+}
+
+h1, h2, h3, .font-serif {
+  font-family: 'Cormorant Garamond', Georgia, serif;
+}
+
+::selection {
+  background: rgba(94, 234, 212, 0.25);
+}
+
+.label {
+  @apply text-[11px] uppercase tracking-[0.2em] text-emerald-400 font-medium;
+}
+
+.card {
+  @apply bg-ink-900 border border-ink-600 rounded-xl;
+}
+
+.btn-primary {
+  @apply inline-flex items-center justify-center gap-2 rounded-md border border-emerald-500/40 bg-emerald-500/10 px-5 py-2.5 text-sm font-medium text-emerald-300 transition hover:bg-emerald-500/20 hover:border-emerald-400/60;
+}
+
+.btn-secondary {
+  @apply inline-flex items-center justify-center gap-2 rounded-md border border-ink-500 px-5 py-2.5 text-sm font-medium text-mist-200 transition hover:border-mist-300/60 hover:text-white;
+}
+
+.btn-ghost {
+  @apply inline-flex items-center gap-1 text-sm text-emerald-400 hover:text-emerald-300 transition;
+}
+
+.input {
+  @apply w-full rounded-md border border-ink-500 bg-ink-900 px-3.5 py-2.5 text-sm text-mist-100 placeholder-mist-400 outline-none transition focus:border-emerald-500/60 focus:ring-1 focus:ring-emerald-500/40;
+}
+
+.chip {
+  @apply inline-flex items-center rounded-full border border-ink-500 px-2.5 py-0.5 text-xs text-mist-300;
+}
+
+.scrollbar-thin::-webkit-scrollbar {
+  width: 6px;
+}
+.scrollbar-thin::-webkit-scrollbar-thumb {
+  background: #22272c;
+  border-radius: 999px;
+}
