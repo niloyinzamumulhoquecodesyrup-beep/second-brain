@@ -11,11 +11,18 @@ async function handler(req, res) {
   const userId = req.user.id
 
   try {
-    const [paraCounts, distilledCount, packetCount, taskCounts, linkCount, recent, tagRows] = await Promise.all([
+    const [paraCounts, distilledCount, packetCount, taskCounts, openTasks, linkCount, recent, tagRows] = await Promise.all([
       pool.query('SELECT para, count(*)::int AS count FROM notes WHERE user_id=$1 GROUP BY para', [userId]),
       pool.query('SELECT count(*)::int AS count FROM notes WHERE user_id=$1 AND distilled=true', [userId]),
       pool.query('SELECT count(*)::int AS count FROM packets WHERE user_id=$1', [userId]),
       pool.query('SELECT done, count(*)::int AS count FROM tasks WHERE user_id=$1 GROUP BY done', [userId]),
+      pool.query(
+        `SELECT t.id, t.title, t.due_date, t.note_id, n.title AS note_title
+         FROM tasks t LEFT JOIN notes n ON n.id = t.note_id
+         WHERE t.user_id=$1 AND t.done=false
+         ORDER BY t.due_date NULLS LAST, t.created_at DESC LIMIT 6`,
+        [userId]
+      ),
       pool.query(
         `SELECT count(*)::int AS count FROM note_links l JOIN notes n ON n.id = l.from_note_id WHERE n.user_id=$1`,
         [userId]
@@ -45,6 +52,7 @@ async function handler(req, res) {
       packets: packetCount.rows[0].count,
       tasksOpen,
       tasksDone,
+      openTasks: openTasks.rows,
       links: linkCount.rows[0].count,
       recent: recent.rows,
       topTags

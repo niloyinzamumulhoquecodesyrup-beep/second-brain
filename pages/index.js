@@ -24,6 +24,20 @@ export default function Dashboard({ user }) {
       })
   }, [])
 
+  async function completeTask(task) {
+    setStats(prev => ({
+      ...prev,
+      openTasks: prev.openTasks.filter(t => t.id !== task.id),
+      tasksOpen: prev.tasksOpen - 1,
+      tasksDone: prev.tasksDone + 1
+    }))
+    await fetch('/api/tasks/' + task.id, {
+      method: 'PUT',
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({ done: true })
+    })
+  }
+
   return (
     <Layout user={user}>
       <div className="mb-10 flex flex-wrap items-end justify-between gap-4">
@@ -72,6 +86,42 @@ export default function Dashboard({ user }) {
               <p className="font-serif text-3xl font-light text-white">{stats.tasksOpen}</p>
               <p className="mt-1 text-xs text-mist-400">{stats.tasksDone} completed</p>
             </div>
+          </div>
+
+          <div className="card mb-10 p-6">
+            <div className="mb-5 flex items-center justify-between">
+              <p className="label">Open tasks</p>
+              <Link href="/express" className="btn-ghost">
+                View all →
+              </Link>
+            </div>
+            {stats.openTasks.length === 0 ? (
+              <p className="text-sm text-mist-400">Nothing open. Add the next small step on a project in Express.</p>
+            ) : (
+              <div className="divide-y divide-ink-700">
+                {stats.openTasks.map(t => {
+                  const overdue = t.due_date && new Date(t.due_date) < new Date(new Date().toDateString())
+                  return (
+                    <div key={t.id} className="flex items-start gap-3 py-3">
+                      <input type="checkbox" checked={false} onChange={() => completeTask(t)} className="mt-1" />
+                      <div className="min-w-0 flex-1">
+                        <p className="text-sm text-mist-100">{t.title}</p>
+                        <div className="mt-1 flex flex-wrap items-center gap-2 text-xs text-mist-500">
+                          {t.note_title && (
+                            <Link href={`/notes/${t.note_id}`} className="hover:text-emerald-300">↳ {t.note_title}</Link>
+                          )}
+                          {t.due_date && (
+                            <span className={overdue ? 'text-red-400' : ''}>
+                              due {new Date(t.due_date).toLocaleDateString()}
+                            </span>
+                          )}
+                        </div>
+                      </div>
+                    </div>
+                  )
+                })}
+              </div>
+            )}
           </div>
 
           <div className="grid gap-6 lg:grid-cols-3">
