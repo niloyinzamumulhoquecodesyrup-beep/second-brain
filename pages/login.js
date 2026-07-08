@@ -34,14 +34,14 @@ export default function Login() {
   }
 
   return (
-    <div className="flex min-h-screen items-center justify-center bg-ink-950 bg-radial-fade px-6">
+    <div className="flex min-h-screen items-center justify-center bg-ink-950 bg-aura px-6">
       <div className="w-full max-w-sm">
         <div className="mb-10 text-center">
-          <div className="mx-auto mb-4 flex h-11 w-11 items-center justify-center rounded-full border border-emerald-400/50 font-serif text-sm text-emerald-300">
+          <div className="mx-auto mb-4 flex h-11 w-11 items-center justify-center rounded-full border border-emerald-400/50 bg-gradient-to-br from-emerald-500/20 via-violet-500/10 to-gold-500/20 font-serif text-sm text-emerald-300">
             SB
           </div>
           <p className="label mb-2">Welcome back</p>
-          <h1 className="font-serif text-4xl font-light text-white">Second Brain</h1>
+          <h1 className="font-serif text-4xl font-light text-gradient">Second Brain</h1>
         </div>
 
         <form onSubmit={submit} className="card space-y-4 p-7">

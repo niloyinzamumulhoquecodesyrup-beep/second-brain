@@ -43,7 +43,7 @@ export default function Distill({ user }) {
 
   return (
     <Layout user={user}>
-      <p className="label mb-2">Distill</p>
+      <p className="label mb-2 !text-gold-400">Distill</p>
       <h1 className="mb-2 font-serif text-4xl font-light text-white">Refine to the essence</h1>
       <p className="mb-8 max-w-2xl text-sm text-mist-400">
         Read → highlight → bold → summarize. Write an executive summary of only what matters — the most distilled
@@ -55,7 +55,7 @@ export default function Distill({ user }) {
           <button
             key={f}
             onClick={() => setFilter(f)}
-            className={`chip capitalize ${filter === f ? 'border-emerald-400/50 text-emerald-300' : ''}`}
+            className={`chip capitalize ${filter === f ? 'border-gold-400/50 text-gold-400' : ''}`}
           >
             {f}
           </button>
@@ -63,7 +63,7 @@ export default function Distill({ user }) {
       </div>
 
       <div className="grid gap-6 lg:grid-cols-3">
-        <div className="card scrollbar-thin overflow-y-auto p-2" style={{ maxHeight: 600 }}>
+        <div className="card scrollbar-thin overflow-y-auto border-t-2 border-gold-400/30 p-2" style={{ maxHeight: 600 }}>
           {visible.length === 0 && <p className="p-4 text-sm text-mist-400">Nothing to distill yet.</p>}
           {visible.map(n => (
             <button
@@ -74,7 +74,7 @@ export default function Distill({ user }) {
               <p className="truncate text-sm text-mist-100">{n.title}</p>
               <div className="mt-1 flex items-center gap-2">
                 <ParaBadge para={n.para} />
-                {n.distilled && <span className="text-[10px] uppercase tracking-wide text-emerald-400">Distilled</span>}
+                {n.distilled && <span className="text-[10px] uppercase tracking-wide text-gold-400">Distilled</span>}
               </div>
             </button>
           ))}
@@ -89,12 +89,12 @@ export default function Distill({ user }) {
               </p>
               <label className="mb-1.5 mt-6 block text-xs uppercase tracking-wider text-mist-400">Executive summary</label>
               <textarea
-                className="input min-h-[160px]"
+                className="input min-h-[160px] focus:!border-gold-500/60 focus:!ring-gold-500/40"
                 value={summary}
                 onChange={e => setSummary(e.target.value)}
                 placeholder="Only what feels important, in a few sentences."
               />
-              <button onClick={saveSummary} disabled={saving} className="btn-primary mt-4">
+              <button onClick={saveSummary} disabled={saving} className="btn-gold mt-4">
                 {saving ? 'Saving…' : 'Save summary'}
               </button>
             </div>

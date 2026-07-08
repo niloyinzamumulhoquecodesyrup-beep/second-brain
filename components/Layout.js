@@ -21,11 +21,11 @@ export default function Layout({ children, user }) {
   }
 
   return (
-    <div className="min-h-screen bg-ink-950 bg-radial-fade text-mist-100">
+    <div className="min-h-screen bg-ink-950 bg-aura text-mist-100">
       <header className="sticky top-0 z-30 border-b border-ink-700/80 bg-ink-950/85 backdrop-blur">
         <div className="mx-auto flex max-w-6xl items-center justify-between px-6 py-4">
           <Link href="/" className="flex items-center gap-2.5">
-            <span className="flex h-7 w-7 items-center justify-center rounded-full border border-emerald-400/50 text-xs text-emerald-300 font-serif">
+            <span className="flex h-7 w-7 items-center justify-center rounded-full border border-emerald-400/50 bg-gradient-to-br from-emerald-500/20 via-violet-500/10 to-gold-500/20 text-xs text-emerald-300 font-serif">
               SB
             </span>
             <span className="font-serif text-xl tracking-wide text-white">Second Brain</span>

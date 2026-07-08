@@ -2,7 +2,8 @@
 module.exports = {
   content: [
     './pages/**/*.{js,jsx}',
-    './components/**/*.{js,jsx}'
+    './components/**/*.{js,jsx}',
+    './lib/**/*.js'
   ],
   theme: {
     extend: {
@@ -40,9 +41,6 @@ module.exports = {
           500: '#e0c07e',
           600: '#c9a35e'
         }
-      },
-      backgroundImage: {
-        'radial-fade': 'radial-gradient(circle at 50% 0%, rgba(94,234,212,0.08), transparent 60%)'
       }
     }
   },

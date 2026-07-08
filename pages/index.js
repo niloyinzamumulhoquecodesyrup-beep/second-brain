@@ -3,6 +3,7 @@ import Link from 'next/link'
 import Layout from '../components/Layout'
 import ParaBadge from '../components/ParaBadge'
 import { requireSessionSSR } from '../lib/pageAuth'
+import { PARA_THEME } from '../lib/paraTheme'
 
 const PARA_LABELS = {
   project: 'Projects',
@@ -44,7 +45,7 @@ export default function Dashboard({ user }) {
         <div>
           <p className="label mb-2">Overview</p>
           <h1 className="font-serif text-4xl font-light text-white">
-            Welcome back{user?.email ? `, ${user.email.split('@')[0]}` : ''}
+            Welcome back{user?.email ? <>, <span className="text-gradient">{user.email.split('@')[0]}</span></> : ''}
           </h1>
         </div>
         <Link href="/capture" className="btn-primary">
@@ -57,32 +58,38 @@ export default function Dashboard({ user }) {
       {stats && (
         <>
           <div className="mb-10 grid grid-cols-2 gap-4 md:grid-cols-4">
-            {['project', 'area', 'resource', 'archive'].map(key => (
-              <div key={key} className="card p-5">
-                <p className="label mb-2">{PARA_LABELS[key]}</p>
-                <p className="font-serif text-4xl font-light text-white">{stats.para[key] ?? 0}</p>
-              </div>
-            ))}
+            {['project', 'area', 'resource', 'archive'].map(key => {
+              const theme = PARA_THEME[key]
+              return (
+                <div key={key} className={`card border-t-2 p-5 ${theme.border}`}>
+                  <p className={`mb-2 flex items-center gap-2 text-[11px] uppercase tracking-[0.2em] font-medium ${theme.text}`}>
+                    <span className={`h-1.5 w-1.5 rounded-full ${theme.dot}`} />
+                    {PARA_LABELS[key]}
+                  </p>
+                  <p className="font-serif text-4xl font-light text-white">{stats.para[key] ?? 0}</p>
+                </div>
+              )
+            })}
           </div>
 
           <div className="mb-10 grid gap-4 md:grid-cols-4">
-            <div className="card p-5">
-              <p className="label mb-2">Knowledge assets</p>
+            <div className="card border-t-2 border-emerald-400/40 p-5">
+              <p className="label mb-2 !text-emerald-300">Knowledge assets</p>
               <p className="font-serif text-3xl font-light text-white">{stats.totalNotes}</p>
               <p className="mt-1 text-xs text-mist-400">total captures</p>
             </div>
-            <div className="card p-5">
-              <p className="label mb-2">Distilled</p>
+            <div className="card border-t-2 border-gold-400/40 p-5">
+              <p className="label mb-2 !text-gold-400">Distilled</p>
               <p className="font-serif text-3xl font-light text-white">{stats.distilled}</p>
               <p className="mt-1 text-xs text-mist-400">refined to their essence</p>
             </div>
-            <div className="card p-5">
-              <p className="label mb-2">Connections</p>
+            <div className="card border-t-2 border-sky-400/40 p-5">
+              <p className="label mb-2 !text-sky-400">Connections</p>
               <p className="font-serif text-3xl font-light text-white">{stats.links}</p>
               <p className="mt-1 text-xs text-mist-400">note-to-note links · {stats.packets} packets saved</p>
             </div>
-            <div className="card p-5">
-              <p className="label mb-2">Open tasks</p>
+            <div className="card border-t-2 border-violet-400/40 p-5">
+              <p className="label mb-2 !text-violet-300">Open tasks</p>
               <p className="font-serif text-3xl font-light text-white">{stats.tasksOpen}</p>
               <p className="mt-1 text-xs text-mist-400">{stats.tasksDone} completed</p>
             </div>

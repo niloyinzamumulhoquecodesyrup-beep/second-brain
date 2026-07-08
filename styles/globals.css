@@ -4,55 +4,93 @@
 @tailwind components;
 @tailwind utilities;
 
-html {
-  background: #050607;
+@layer base {
+  html {
+    background: #050607;
+  }
+
+  body {
+    @apply bg-ink-950 text-mist-100 antialiased;
+    font-family: 'Inter', system-ui, -apple-system, sans-serif;
+  }
+
+  h1, h2, h3, .font-serif {
+    font-family: 'Cormorant Garamond', Georgia, serif;
+  }
+
+  ::selection {
+    background: rgba(94, 234, 212, 0.25);
+  }
 }
 
-body {
-  @apply bg-ink-950 text-mist-100 antialiased;
-  font-family: 'Inter', system-ui, -apple-system, sans-serif;
+@layer components {
+  .label {
+    @apply text-[11px] uppercase tracking-[0.2em] text-emerald-400 font-medium;
+  }
+
+  .card {
+    @apply bg-ink-900 border border-ink-600 rounded-xl;
+  }
+
+  .btn-primary {
+    @apply inline-flex items-center justify-center gap-2 rounded-md border border-emerald-500/40 bg-emerald-500/10 px-5 py-2.5 text-sm font-medium text-emerald-300 transition hover:bg-emerald-500/20 hover:border-emerald-400/60;
+  }
+
+  .btn-gold {
+    @apply inline-flex items-center justify-center gap-2 rounded-md border border-gold-500/40 bg-gold-500/10 px-5 py-2.5 text-sm font-medium text-gold-400 transition hover:bg-gold-500/20 hover:border-gold-400/60;
+  }
+
+  .btn-violet {
+    @apply inline-flex items-center justify-center gap-2 rounded-md border border-violet-500/40 bg-violet-500/10 px-5 py-2.5 text-sm font-medium text-violet-300 transition hover:bg-violet-500/20 hover:border-violet-400/60;
+  }
+
+  .btn-secondary {
+    @apply inline-flex items-center justify-center gap-2 rounded-md border border-ink-500 px-5 py-2.5 text-sm font-medium text-mist-200 transition hover:border-mist-300/60 hover:text-white;
+  }
+
+  .btn-ghost {
+    @apply inline-flex items-center gap-1 text-sm text-emerald-400 hover:text-emerald-300 transition;
+  }
+
+  .input {
+    @apply w-full rounded-md border border-ink-500 bg-ink-900 px-3.5 py-2.5 text-sm text-mist-100 placeholder-mist-400 outline-none transition focus:border-emerald-500/60 focus:ring-1 focus:ring-emerald-500/40;
+  }
+
+  .chip {
+    @apply inline-flex items-center rounded-full border border-ink-500 px-2.5 py-0.5 text-xs text-mist-300;
+  }
 }
 
-h1, h2, h3, .font-serif {
-  font-family: 'Cormorant Garamond', Georgia, serif;
-}
+@layer utilities {
+  .text-gradient {
+    background-image: linear-gradient(100deg, #5eead4 0%, #e0c07e 60%, #b7a6f7 100%);
+    -webkit-background-clip: text;
+    background-clip: text;
+    color: transparent;
+  }
 
-::selection {
-  background: rgba(94, 234, 212, 0.25);
-}
+  .bg-aura {
+    position: relative;
+    isolation: isolate;
+  }
 
-.label {
-  @apply text-[11px] uppercase tracking-[0.2em] text-emerald-400 font-medium;
-}
+  .bg-aura::before {
+    content: '';
+    position: absolute;
+    inset: 0;
+    z-index: -1;
+    pointer-events: none;
+    background:
+      radial-gradient(480px circle at 12% 0%, rgba(167, 139, 250, 0.16), transparent 60%),
+      radial-gradient(420px circle at 88% 8%, rgba(224, 192, 126, 0.14), transparent 55%),
+      radial-gradient(560px circle at 50% 100%, rgba(45, 212, 191, 0.12), transparent 60%);
+  }
 
-.card {
-  @apply bg-ink-900 border border-ink-600 rounded-xl;
-}
-
-.btn-primary {
-  @apply inline-flex items-center justify-center gap-2 rounded-md border border-emerald-500/40 bg-emerald-500/10 px-5 py-2.5 text-sm font-medium text-emerald-300 transition hover:bg-emerald-500/20 hover:border-emerald-400/60;
-}
-
-.btn-secondary {
-  @apply inline-flex items-center justify-center gap-2 rounded-md border border-ink-500 px-5 py-2.5 text-sm font-medium text-mist-200 transition hover:border-mist-300/60 hover:text-white;
-}
-
-.btn-ghost {
-  @apply inline-flex items-center gap-1 text-sm text-emerald-400 hover:text-emerald-300 transition;
-}
-
-.input {
-  @apply w-full rounded-md border border-ink-500 bg-ink-900 px-3.5 py-2.5 text-sm text-mist-100 placeholder-mist-400 outline-none transition focus:border-emerald-500/60 focus:ring-1 focus:ring-emerald-500/40;
-}
-
-.chip {
-  @apply inline-flex items-center rounded-full border border-ink-500 px-2.5 py-0.5 text-xs text-mist-300;
-}
-
-.scrollbar-thin::-webkit-scrollbar {
-  width: 6px;
-}
-.scrollbar-thin::-webkit-scrollbar-thumb {
-  background: #22272c;
-  border-radius: 999px;
+  .scrollbar-thin::-webkit-scrollbar {
+    width: 6px;
+  }
+  .scrollbar-thin::-webkit-scrollbar-thumb {
+    background: #22272c;
+    border-radius: 999px;
+  }
 }

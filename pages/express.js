@@ -124,11 +124,11 @@ export default function Express({ user }) {
       </p>
 
       <div className="grid gap-6 lg:grid-cols-3">
-        <div className="card p-6 lg:col-span-2">
-          <p className="label mb-4">Add a task</p>
+        <div className="card border-t-2 border-violet-400/30 p-6 lg:col-span-2">
+          <p className="label mb-4 !text-violet-300">Add a task</p>
           <div className="space-y-3">
             <input
-              className="input"
+              className="input focus:!border-violet-500/60 focus:!ring-violet-500/40"
               placeholder="What's the next action?"
               value={taskTitle}
               onChange={e => setTaskTitle(e.target.value)}
@@ -143,12 +143,12 @@ export default function Express({ user }) {
               </select>
               <input className="input" type="date" value={taskDueDate} onChange={e => setTaskDueDate(e.target.value)} />
             </div>
-            <button onClick={createTask} disabled={!taskTitle.trim() || creatingTask} className="btn-primary">
+            <button onClick={createTask} disabled={!taskTitle.trim() || creatingTask} className="btn-violet">
               {creatingTask ? 'Adding…' : 'Add task'}
             </button>
           </div>
 
-          <p className="label mb-3 mt-8">Open ({openTasks.length})</p>
+          <p className="label mb-3 mt-8 !text-violet-300">Open ({openTasks.length})</p>
           {openTasks.length === 0 ? (
             <p className="text-sm text-mist-400">Nothing on your plate. Add the next small step on a project.</p>
           ) : (
@@ -197,7 +197,7 @@ export default function Express({ user }) {
           )}
         </div>
 
-        <div className="card p-6">
+        <div className="card border-t-2 border-emerald-400/30 p-6">
           <p className="label mb-4">Projects</p>
           {projects.length === 0 ? (
             <p className="text-sm text-mist-400">No active projects. Move a note to Projects in Organize.</p>
@@ -219,8 +219,8 @@ export default function Express({ user }) {
         </div>
       </div>
 
-      <div className="mt-6 card p-6">
-        <p className="label mb-1">Save a reusable packet</p>
+      <div className="mt-6 card border-t-2 border-gold-400/30 p-6">
+        <p className="label mb-1 !text-gold-400">Save a reusable packet</p>
         <p className="mb-4 text-xs text-mist-500">
           A packet is a piece of finished output worth keeping — a summary, a paragraph, a template — so you don't
           rebuild it from scratch next time.
@@ -235,12 +235,12 @@ export default function Express({ user }) {
             </select>
             <input className="input" placeholder="Packet title (optional)" value={packetTitle} onChange={e => setPacketTitle(e.target.value)} />
             <textarea
-              className="input min-h-[100px]"
+              className="input min-h-[100px] focus:!border-gold-500/60 focus:!ring-gold-500/40"
               placeholder={selectedNote ? (selectedNote.executive_summary || selectedNote.content || '').slice(0, 200) : 'Packet content (optional — defaults to the note summary)'}
               value={packetContent}
               onChange={e => setPacketContent(e.target.value)}
             />
-            <button onClick={createPacket} disabled={!selectedId || creatingPacket} className="btn-secondary">
+            <button onClick={createPacket} disabled={!selectedId || creatingPacket} className="btn-gold">
               {creatingPacket ? 'Saving…' : 'Save packet'}
             </button>
           </div>
@@ -257,7 +257,7 @@ export default function Express({ user }) {
                       <p className="mt-1 text-xs text-mist-500">{(p.content || '').slice(0, 160)}</p>
                     </div>
                     <div className="flex shrink-0 gap-3">
-                      <button onClick={() => copyPacket(p)} className="text-xs text-emerald-400 hover:text-emerald-300">
+                      <button onClick={() => copyPacket(p)} className="text-xs text-gold-400 hover:text-gold-500">
                         {copiedId === p.id ? 'Copied' : 'Copy'}
                       </button>
                       <button onClick={() => deletePacket(p)} className="text-xs text-mist-500 hover:text-red-400">Remove</button>

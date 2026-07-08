@@ -85,7 +85,7 @@ export default function NoteDetail({ user }) {
             <div>
               <div className="mb-2 flex items-center gap-2">
                 <ParaBadge para={note.para} />
-                {note.distilled && <span className="chip border-emerald-400/40 text-emerald-300">Distilled</span>}
+                {note.distilled && <span className="chip border-gold-400/40 text-gold-400">Distilled</span>}
                 {note.pinned && <span className="chip border-gold-400/40 text-gold-400">Pinned</span>}
               </div>
               <h1 className="font-serif text-4xl font-light text-white">{note.title}</h1>
@@ -111,8 +111,8 @@ export default function NoteDetail({ user }) {
           )}
 
           {note.executive_summary && (
-            <div className="card mb-6 border-emerald-400/20 p-5">
-              <p className="label mb-2">Executive summary</p>
+            <div className="card mb-6 border-t-2 border-gold-400/30 p-5">
+              <p className="label mb-2 !text-gold-400">Executive summary</p>
               <p className="whitespace-pre-wrap text-sm text-mist-200">{note.executive_summary}</p>
             </div>
           )}

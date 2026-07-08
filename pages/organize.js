@@ -4,6 +4,7 @@ import Link from 'next/link'
 import Layout from '../components/Layout'
 import ParaBadge from '../components/ParaBadge'
 import { requireSessionSSR } from '../lib/pageAuth'
+import { PARA_THEME } from '../lib/paraTheme'
 
 const COLUMNS = [
   { key: 'project', label: 'Projects', hint: 'Short-term, has a deadline' },
@@ -75,40 +76,46 @@ export default function Organize({ user }) {
         <p className="text-mist-400">Loading…</p>
       ) : (
         <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-4">
-          {COLUMNS.map(col => (
-            <div key={col.key} className="card flex flex-col p-4">
-              <div className="mb-3">
-                <div className="flex items-center justify-between">
-                  <p className="font-serif text-lg text-white">{col.label}</p>
-                  <span className="chip">{groups[col.key].length}</span>
-                </div>
-                <p className="text-xs text-mist-500">{col.hint}</p>
-              </div>
-
-              <div className="scrollbar-thin flex-1 space-y-2 overflow-y-auto" style={{ maxHeight: 520 }}>
-                {groups[col.key].length === 0 && <p className="text-xs text-mist-500">Nothing here.</p>}
-                {groups[col.key].map(n => (
-                  <div key={n.id} className="rounded-md border border-ink-700 p-3">
-                    <Link href={`/notes/${n.id}`} className="block truncate text-sm text-mist-100 hover:text-emerald-300">
-                      {n.title}
-                    </Link>
-                    <p className="mt-1 line-clamp-2 text-xs text-mist-400">{(n.content || '').slice(0, 120)}</p>
-                    <div className="mt-2 flex flex-wrap gap-1">
-                      {COLUMNS.filter(c => c.key !== col.key).map(c => (
-                        <button
-                          key={c.key}
-                          onClick={() => move(n.id, c.key)}
-                          className="rounded border border-ink-600 px-1.5 py-0.5 text-[10px] uppercase tracking-wide text-mist-400 transition hover:border-emerald-400/50 hover:text-emerald-300"
-                        >
-                          → {c.label}
-                        </button>
-                      ))}
-                    </div>
+          {COLUMNS.map(col => {
+            const theme = PARA_THEME[col.key]
+            return (
+              <div key={col.key} className={`card flex flex-col border-t-2 p-4 ${theme.border}`}>
+                <div className="mb-3">
+                  <div className="flex items-center justify-between">
+                    <p className={`flex items-center gap-2 font-serif text-lg text-white`}>
+                      <span className={`h-1.5 w-1.5 rounded-full ${theme.dot}`} />
+                      {col.label}
+                    </p>
+                    <span className={`chip border ${theme.border} ${theme.text}`}>{groups[col.key].length}</span>
                   </div>
-                ))}
+                  <p className="text-xs text-mist-500">{col.hint}</p>
+                </div>
+
+                <div className="scrollbar-thin flex-1 space-y-2 overflow-y-auto" style={{ maxHeight: 520 }}>
+                  {groups[col.key].length === 0 && <p className="text-xs text-mist-500">Nothing here.</p>}
+                  {groups[col.key].map(n => (
+                    <div key={n.id} className="rounded-md border border-ink-700 p-3">
+                      <Link href={`/notes/${n.id}`} className={theme.hoverLink}>
+                        {n.title}
+                      </Link>
+                      <p className="mt-1 line-clamp-2 text-xs text-mist-400">{(n.content || '').slice(0, 120)}</p>
+                      <div className="mt-2 flex flex-wrap gap-1">
+                        {COLUMNS.filter(c => c.key !== col.key).map(c => (
+                          <button
+                            key={c.key}
+                            onClick={() => move(n.id, c.key)}
+                            className={PARA_THEME[c.key].hoverMoveBtn}
+                          >
+                            → {c.label}
+                          </button>
+                        ))}
+                      </div>
+                    </div>
+                  ))}
+                </div>
               </div>
-            </div>
-          ))}
+            )
+          })}
         </div>
       )}
     </Layout>

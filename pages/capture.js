@@ -61,7 +61,7 @@ export default function Capture({ user }) {
       </p>
 
       <div className="grid gap-6 lg:grid-cols-3">
-        <form onSubmit={submit} className="card space-y-4 p-6 lg:col-span-2">
+        <form onSubmit={submit} className="card space-y-4 border-t-2 border-emerald-400/30 p-6 lg:col-span-2">
           <input className="input" placeholder="Title" value={title} onChange={e => setTitle(e.target.value)} />
           <textarea
             className="input min-h-[220px] resize-y"
