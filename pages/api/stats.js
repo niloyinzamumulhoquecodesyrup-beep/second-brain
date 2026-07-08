@@ -31,7 +31,7 @@ async function handler(req, res) {
       pool.query('SELECT tags FROM notes WHERE user_id=$1', [userId])
     ])
 
-    const paraMap = { project: 0, area: 0, resource: 0, archive: 0 }
+    const paraMap = { inbox: 0, project: 0, area: 0, resource: 0, archive: 0 }
     paraCounts.rows.forEach(r => { paraMap[r.para] = r.count })
 
     const tagCounts = {}

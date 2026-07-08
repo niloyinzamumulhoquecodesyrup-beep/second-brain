@@ -6,6 +6,7 @@ import { requireSessionSSR } from '../lib/pageAuth'
 import { PARA_THEME } from '../lib/paraTheme'
 
 const PARA_LABELS = {
+  inbox: 'Inbox',
   project: 'Projects',
   area: 'Areas',
   resource: 'Resources',
@@ -57,8 +58,20 @@ export default function Dashboard({ user }) {
 
       {stats && (
         <>
-          <div className="mb-10 grid grid-cols-2 gap-4 md:grid-cols-4">
-            {['project', 'area', 'resource', 'archive'].map(key => {
+          {stats.para.inbox > 0 && (
+            <Link
+              href="/organize"
+              className="mb-8 flex items-center justify-between gap-4 rounded-xl border border-rose-400/30 bg-rose-500/5 p-4 transition hover:border-rose-400/50"
+            >
+              <span className="text-sm text-rose-200">
+                <strong className="text-rose-300">{stats.para.inbox}</strong> {stats.para.inbox === 1 ? 'item is' : 'items are'} waiting in your Inbox — a five-minute weekly review keeps it from piling up.
+              </span>
+              <span className="whitespace-nowrap text-sm text-rose-300">Process it →</span>
+            </Link>
+          )}
+
+          <div className="mb-10 grid grid-cols-2 gap-4 md:grid-cols-5">
+            {['inbox', 'project', 'area', 'resource', 'archive'].map(key => {
               const theme = PARA_THEME[key]
               return (
                 <div key={key} className={`card border-t-2 p-5 ${theme.border}`}>

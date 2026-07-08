@@ -4,9 +4,10 @@ import Layout from '../components/Layout'
 import { requireSessionSSR } from '../lib/pageAuth'
 
 const PARA_OPTIONS = [
-  { value: 'resource', label: 'Resource — interest to explore' },
+  { value: 'inbox', label: 'Inbox — sort it later (recommended)' },
   { value: 'project', label: 'Project — short-term, has a deadline' },
   { value: 'area', label: 'Area — ongoing, no end date' },
+  { value: 'resource', label: 'Resource — interest to explore' },
   { value: 'archive', label: 'Archive — no longer a priority' }
 ]
 
@@ -14,7 +15,7 @@ export default function Capture({ user }) {
   const [title, setTitle] = useState('')
   const [content, setContent] = useState('')
   const [tags, setTags] = useState('')
-  const [para, setPara] = useState('resource')
+  const [para, setPara] = useState('inbox')
   const [sourceUrl, setSourceUrl] = useState('')
   const [status, setStatus] = useState('')
   const [recent, setRecent] = useState([])
@@ -57,7 +58,9 @@ export default function Capture({ user }) {
       <h1 className="mb-2 font-serif text-4xl font-light text-white">What resonated with you?</h1>
       <p className="mb-8 max-w-2xl text-sm text-mist-400">
         Reflect on the last 24 hours. Capture what genuinely sparks interest — not everything, just what feels like
-        a knowledge asset. Link to related notes with <code className="rounded bg-ink-800 px-1 py-0.5 text-emerald-300">[[Note Title]]</code>.
+        a knowledge asset. Don't stop to decide where it belongs — everything lands in your Inbox by default and
+        gets sorted during your weekly review in Organize. Link to related notes with{' '}
+        <code className="rounded bg-ink-800 px-1 py-0.5 text-emerald-300">[[Note Title]]</code>.
       </p>
 
       <div className="grid gap-6 lg:grid-cols-3">

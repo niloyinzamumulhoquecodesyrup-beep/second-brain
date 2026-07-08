@@ -5,7 +5,7 @@ import Layout from '../../components/Layout'
 import ParaBadge from '../../components/ParaBadge'
 import { requireSessionSSR } from '../../lib/pageAuth'
 
-const PARA_VALUES = ['project', 'area', 'resource', 'archive']
+const PARA_VALUES = ['inbox', 'project', 'area', 'resource', 'archive']
 
 export default function NoteDetail({ user }) {
   const router = useRouter()

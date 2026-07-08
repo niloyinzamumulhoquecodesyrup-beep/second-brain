@@ -7,11 +7,14 @@ import { requireSessionSSR } from '../lib/pageAuth'
 import { PARA_THEME } from '../lib/paraTheme'
 
 const COLUMNS = [
+  { key: 'inbox', label: 'Inbox', hint: 'Unsorted — process weekly' },
   { key: 'project', label: 'Projects', hint: 'Short-term, has a deadline' },
   { key: 'area', label: 'Areas', hint: 'Ongoing, no end date' },
   { key: 'resource', label: 'Resources', hint: 'Interests to explore' },
   { key: 'archive', label: 'Archives', hint: 'No longer a priority' }
 ]
+
+const SORT_TARGETS = COLUMNS.filter(c => c.key !== 'inbox')
 
 export default function Organize({ user }) {
   const router = useRouter()
@@ -42,16 +45,16 @@ export default function Organize({ user }) {
     await fetch('/api/para', { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ id: noteId, para }) })
   }
 
-  const groups = { project: [], area: [], resource: [], archive: [] }
-  notes.forEach(n => groups[n.para || 'resource'].push(n))
+  const groups = { inbox: [], project: [], area: [], resource: [], archive: [] }
+  notes.forEach(n => groups[n.para || 'inbox'].push(n))
 
   return (
     <Layout user={user}>
       <p className="label mb-2">Organize</p>
       <h1 className="mb-2 font-serif text-4xl font-light text-white">The PARA method</h1>
       <p className="mb-8 max-w-2xl text-sm text-mist-400">
-        Sorted by use, not subject — like a kitchen, not a library. Archive what isn't immediately necessary and
-        keep actionable work close.
+        Sorted by use, not subject — like a kitchen, not a library. Spend five minutes clearing the Inbox each
+        week, archive what isn't immediately necessary, and keep actionable work close.
       </p>
 
       <div className="mb-8 flex flex-wrap gap-3">
@@ -75,7 +78,7 @@ export default function Organize({ user }) {
       {loading ? (
         <p className="text-mist-400">Loading…</p>
       ) : (
-        <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-4">
+        <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-5">
           {COLUMNS.map(col => {
             const theme = PARA_THEME[col.key]
             return (
@@ -100,7 +103,7 @@ export default function Organize({ user }) {
                       </Link>
                       <p className="mt-1 line-clamp-2 text-xs text-mist-400">{(n.content || '').slice(0, 120)}</p>
                       <div className="mt-2 flex flex-wrap gap-1">
-                        {COLUMNS.filter(c => c.key !== col.key).map(c => (
+                        {SORT_TARGETS.filter(c => c.key !== col.key).map(c => (
                           <button
                             key={c.key}
                             onClick={() => move(n.id, c.key)}

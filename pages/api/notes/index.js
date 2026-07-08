@@ -44,7 +44,7 @@ async function handler(req, res) {
     try {
       const { rows } = await pool.query(
         `INSERT INTO notes (user_id, title, content, tags, para, source_url) VALUES ($1,$2,$3,$4,$5,$6) RETURNING *`,
-        [userId, title || 'Untitled', content || null, tags || null, para || 'resource', source_url || null]
+        [userId, title || 'Untitled', content || null, tags || null, para || 'inbox', source_url || null]
       )
       const note = rows[0]
       await syncNoteLinks(pool, userId, note.id, note.content)

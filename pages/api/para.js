@@ -11,7 +11,7 @@ async function handler(req, res) {
   const userId = req.user.id
   const { id, para } = req.body || {}
   if (!id || !para) return res.status(400).json({ error: 'id and para required' })
-  if (!['project', 'area', 'resource', 'archive'].includes(para)) {
+  if (!['inbox', 'project', 'area', 'resource', 'archive'].includes(para)) {
     return res.status(400).json({ error: 'invalid para value' })
   }
   try {
