@@ -8,6 +8,7 @@ export default function App({ Component, pageProps }) {
         <title>Second Brain</title>
         <meta name="description" content="A private, connected knowledge system." />
         <meta name="robots" content="noindex, nofollow" />
+        <link rel="icon" href="/favicon.svg" type="image/svg+xml" />
       </Head>
       <Component {...pageProps} />
     </>
