@@ -44,6 +44,10 @@
     @apply inline-flex items-center justify-center gap-2 rounded-md border border-violet-500/40 bg-violet-500/10 px-5 py-2.5 text-sm font-medium text-violet-300 transition hover:bg-violet-500/20 hover:border-violet-400/60;
   }
 
+  .btn-orange {
+    @apply inline-flex items-center justify-center gap-2 rounded-md border border-orange-500/40 bg-orange-500/10 px-5 py-2.5 text-sm font-medium text-orange-300 transition hover:bg-orange-500/20 hover:border-orange-400/60;
+  }
+
   .btn-secondary {
     @apply inline-flex items-center justify-center gap-2 rounded-md border border-ink-500 px-5 py-2.5 text-sm font-medium text-mist-200 transition hover:border-mist-300/60 hover:text-white;
   }

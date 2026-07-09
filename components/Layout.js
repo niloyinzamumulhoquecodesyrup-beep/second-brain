@@ -7,7 +7,8 @@ const NAV_ITEMS = [
   { href: '/capture', label: 'Capture' },
   { href: '/organize', label: 'Organize' },
   { href: '/distill', label: 'Distill' },
-  { href: '/express', label: 'Express' }
+  { href: '/express', label: 'Express' },
+  { href: '/focus', label: 'Focus' }
 ]
 
 export default function Layout({ children, user }) {
