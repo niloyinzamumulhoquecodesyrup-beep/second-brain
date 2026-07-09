@@ -18,6 +18,25 @@ function formatTime(totalSeconds) {
   return `${String(m).padStart(2, '0')}:${String(s).padStart(2, '0')}`
 }
 
+function playChime(ctx) {
+  const now = ctx.currentTime
+  const freqs = [880, 1108.73, 1318.51]
+  freqs.forEach((freq, i) => {
+    const osc = ctx.createOscillator()
+    const gain = ctx.createGain()
+    osc.type = 'sine'
+    osc.frequency.value = freq
+    const start = now + i * 0.16
+    gain.gain.setValueAtTime(0, start)
+    gain.gain.linearRampToValueAtTime(0.3, start + 0.02)
+    gain.gain.exponentialRampToValueAtTime(0.001, start + 0.4)
+    osc.connect(gain)
+    gain.connect(ctx.destination)
+    osc.start(start)
+    osc.stop(start + 0.45)
+  })
+}
+
 export default function Focus({ user }) {
   const [tasks, setTasks] = useState([])
   const [taskId, setTaskId] = useState('')
@@ -28,11 +47,13 @@ export default function Focus({ user }) {
   const [justCompleted, setJustCompleted] = useState(false)
   const [sessionsToday, setSessionsToday] = useState(0)
   const intervalRef = useRef(null)
+  const audioCtxRef = useRef(null)
 
   useEffect(() => {
     fetch('/api/tasks').then(r => r.json()).then(data => setTasks(data.filter(t => !t.done)))
     const stored = Number(localStorage.getItem(todayKey()) || 0)
     setSessionsToday(stored)
+    return () => { audioCtxRef.current?.close() }
   }, [])
 
   useEffect(() => {
@@ -43,6 +64,7 @@ export default function Focus({ user }) {
           clearInterval(intervalRef.current)
           setRunning(false)
           setJustCompleted(true)
+          if (audioCtxRef.current) playChime(audioCtxRef.current)
           if (preset.mode === 'focus') {
             const next = sessionsToday + 1
             setSessionsToday(next)
@@ -75,6 +97,13 @@ export default function Focus({ user }) {
   }
 
   function start() {
+    if (!audioCtxRef.current) {
+      const AudioContextClass = window.AudioContext || window.webkitAudioContext
+      if (AudioContextClass) audioCtxRef.current = new AudioContextClass()
+    }
+    if (audioCtxRef.current && audioCtxRef.current.state === 'suspended') {
+      audioCtxRef.current.resume()
+    }
     setJustCompleted(false)
     setRunning(true)
   }
