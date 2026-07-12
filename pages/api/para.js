@@ -1,5 +1,6 @@
 import { hasDb, getPool } from '../../lib/db'
 import { requireAuth } from '../../lib/withAuth'
+import { logActivity } from '../../lib/activityLog'
 
 async function handler(req, res) {
   if (req.method !== 'POST') {
@@ -15,11 +16,16 @@ async function handler(req, res) {
     return res.status(400).json({ error: 'invalid para value' })
   }
   try {
+    const before = await pool.query('SELECT para FROM notes WHERE id=$1 AND user_id=$2', [id, userId])
+    if (!before.rows[0]) return res.status(404).json({ error: 'Not found' })
+    const fromPara = before.rows[0].para
+
     const { rows } = await pool.query(
       'UPDATE notes SET para=$1, updated_at=now() WHERE id=$2 AND user_id=$3 RETURNING *',
       [para, id, userId]
     )
     if (!rows[0]) return res.status(404).json({ error: 'Not found' })
+    if (fromPara !== para) logActivity(pool, userId, 'para_moved', id, { from: fromPara, to: para })
     return res.status(200).json(rows[0])
   } catch (err) {
     console.error(err)

@@ -1,6 +1,7 @@
 import { hasDb, getPool } from '../../../lib/db'
 import { requireAuth } from '../../../lib/withAuth'
 import { syncNoteLinks } from '../../../lib/links'
+import { logActivity } from '../../../lib/activityLog'
 
 async function handler(req, res) {
   if (!hasDb()) return res.status(500).json({ error: 'Database not configured' })
@@ -31,10 +32,15 @@ async function handler(req, res) {
     )
     if (!rows[0]) return res.status(404).json({ error: 'Not found' })
     if (content !== undefined) await syncNoteLinks(pool, userId, id, rows[0].content)
+    const changedFields = Object.entries({ title, content, para, executive_summary, distilled, status, tags, pinned, source_url })
+      .filter(([, v]) => v !== undefined)
+      .map(([k]) => k)
+    logActivity(pool, userId, 'note_edited', id, { fields: changedFields })
     return res.status(200).json(rows[0])
   } else if (req.method === 'DELETE') {
-    const { rowCount } = await pool.query('DELETE FROM notes WHERE id=$1 AND user_id=$2', [id, userId])
+    const { rows: deleted, rowCount } = await pool.query('DELETE FROM notes WHERE id=$1 AND user_id=$2 RETURNING title, para', [id, userId])
     if (!rowCount) return res.status(404).json({ error: 'Not found' })
+    logActivity(pool, userId, 'note_deleted', id, { title: deleted[0].title, para: deleted[0].para })
     return res.status(204).end()
   } else {
     res.setHeader('Allow', ['GET', 'PUT', 'DELETE'])

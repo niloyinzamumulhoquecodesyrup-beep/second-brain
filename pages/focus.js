@@ -65,6 +65,11 @@ export default function Focus({ user }) {
           setRunning(false)
           setJustCompleted(true)
           if (audioCtxRef.current) playChime(audioCtxRef.current)
+          fetch('/api/activity/focus', {
+            method: 'POST',
+            headers: { 'content-type': 'application/json' },
+            body: JSON.stringify({ mode: preset.mode, minutes: preset.minutes, task_id: taskId || null })
+          }).catch(() => {})
           if (preset.mode === 'focus') {
             const next = sessionsToday + 1
             setSessionsToday(next)
@@ -76,7 +81,7 @@ export default function Focus({ user }) {
       })
     }, 1000)
     return () => clearInterval(intervalRef.current)
-  }, [running, preset.mode, sessionsToday])
+  }, [running, preset.mode, preset.minutes, sessionsToday, taskId])
 
   useEffect(() => {
     const original = document.title

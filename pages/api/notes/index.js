@@ -1,6 +1,7 @@
 import { hasDb, getPool } from '../../../lib/db'
 import { requireAuth } from '../../../lib/withAuth'
 import { syncNoteLinks } from '../../../lib/links'
+import { logActivity } from '../../../lib/activityLog'
 
 async function handler(req, res) {
   if (!hasDb()) return res.status(500).json({ error: 'Database not configured' })
@@ -48,6 +49,7 @@ async function handler(req, res) {
       )
       const note = rows[0]
       await syncNoteLinks(pool, userId, note.id, note.content)
+      logActivity(pool, userId, 'note_created', note.id, { title: note.title, para: note.para })
       res.status(201).json(note)
     } catch (err) {
       console.error(err)
