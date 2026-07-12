@@ -72,7 +72,13 @@ Add via a new migration (`migrations/004_mind_model.sql` or similar):
 - **`push_subscriptions`** — `user_id`, subscription object (endpoint + keys) from the Push API, `created_at`.
   Needed for §5.
 
-## 3. Browser extension (activity capture)
+## 3. Browser extension (activity capture) — DEFERRED
+
+Not being built for now. `device_activity` stays empty; the synthesis job (§4) must not depend on it being
+populated. Revisit this section later if OS/browser-level tracking becomes wanted — the table and ingestion
+design below are still the plan for when that happens.
+
+### (deferred) original spec
 
 Manifest V3 Chrome extension. Tracks the active tab's URL, domain, page title, and focused duration —
 pause the timer on tab blur or when the OS reports idle. Batches events locally in extension memory/
@@ -84,8 +90,16 @@ login), rather than inventing a second auth system.
 
 ## 4. Synthesis job — "Mind Model v1"
 
-A job (script or route, triggered by §6's daily loop) that reads `device_activity` + `activity_log` +
-`notes` for the account and computes, writing results into `mind_insights`:
+`device_activity` is empty for now (§3 deferred) — do not treat sparse/missing device activity as a bug.
+For the current build, the job reads everything else that already exists for the account: `activity_log`,
+`notes` (including tags, para bucket, content, distilled/status, timestamps), `tasks`, `packets`, and
+`note_links`. This is already a real, rich signal on its own — capture/edit timestamps, PARA movement,
+tagging, what got distilled vs. abandoned, task completion latency, focus session durations. Wire in
+`device_activity` later as an additional input if/when §3 is ever built; nothing in the design below should
+require it to be present.
+
+A job (script or route, triggered by §6's daily loop) that reads the sources above for the account and
+computes, writing results into `mind_insights`:
 
 - **Interest clusters** — group notes/activity by topic (start with tags + domain/title keyword overlap;
   embeddings/pgvector can come later) and track whether a cluster is growing or fading.
