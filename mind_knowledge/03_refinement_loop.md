@@ -21,6 +21,21 @@ brief is its entire memory of how to do this job. Treat it as a RAG store: retri
    row's content conservatively, keep the source URLs current, and append a dated changelog line at the
    bottom of the doc. Never delete a doc; supersede if a full rewrite is needed.
 
+## Role separation — each kind has one job, never restate another kind's content
+
+- **`overview`** = *what happened*: the narrative of the period's activity. Counts, clusters, timing
+  live here and only here.
+- **`user_model`** = *patterns in how the user works*: only claims that go beyond restated counts
+  (follow-through shape, capture rhythm, prior-knowledge estimates, calibrations). If a sentence would
+  fit in the overview, it doesn't belong here. At Tier 1 this section may be legitimately short — one
+  or two pattern observations beats a duplicated overview.
+- **`recommendation`** = *researched what-you-might-do*: always contains an actual vetted external
+  resource/path with `keywords_used` (per 01/02). If no recommendation was researched this cycle, write
+  none — the dashboard shows an honest empty state; never fill the slot with user_model prose.
+
+Before writing, check the other kinds' drafts for overlap and cut the duplicate from the lower-priority
+section (overview wins stats, user_model wins patterns, recommendation wins resources).
+
 ## Rules
 
 - The "figure out what to figure out" step is already figured out — it's 00_meta_map. Don't ask the
@@ -36,3 +51,5 @@ brief is its entire memory of how to do this job. Treat it as a RAG store: retri
 ## Changelog
 
 - 2026-07-13: initial seed (researched and written via Cowork session; sources embedded per-doc).
+- 2026-07-13: added role-separation rule after first live cycle produced a user_model that duplicated
+  the overview and no recommendation row.

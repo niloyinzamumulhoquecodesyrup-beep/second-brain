@@ -49,7 +49,7 @@ async function handler(req, res) {
       )
       const note = rows[0]
       await syncNoteLinks(pool, userId, note.id, note.content)
-      logActivity(pool, userId, 'note_created', note.id, { title: note.title, para: note.para })
+      await logActivity(pool, userId, 'note_created', note.id, { title: note.title, para: note.para })
       res.status(201).json(note)
     } catch (err) {
       console.error(err)

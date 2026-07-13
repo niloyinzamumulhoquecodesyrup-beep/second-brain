@@ -186,8 +186,13 @@ manual loop (§6), same as `overview` — no API key, no automated job. Requires
 - `source_refs` on a `recommendation` points at the notes/insights that motivated it; external sources
   (course URLs, papers) go in the `summary` text or a `metadata` field so they're user-checkable.
 
-On the dashboard (§8), `user_model` and `recommendation` render as their own groups below the four
-template kinds, each expandable to sources like everything else.
+On the dashboard (§8), `user_model` and `recommendation` render as their own SEPARATE groups below the
+four template kinds — "How you seem to work" (`user_model`) and "What you might do" (`recommendation`
+only, with an honest empty state like "no recommendation researched yet" when none exists — never
+filled with user_model prose). Each kind has one job and must not restate another kind's content:
+overview = what happened (stats live there), user_model = patterns beyond restated counts,
+recommendation = researched external resources/paths. Full rule in
+`mind_knowledge/03_refinement_loop.md` ("Role separation").
 
 ## 4c. `mind_knowledge` — the RAG-style methodology store
 

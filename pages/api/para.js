@@ -25,7 +25,7 @@ async function handler(req, res) {
       [para, id, userId]
     )
     if (!rows[0]) return res.status(404).json({ error: 'Not found' })
-    if (fromPara !== para) logActivity(pool, userId, 'para_moved', id, { from: fromPara, to: para })
+    if (fromPara !== para) await logActivity(pool, userId, 'para_moved', id, { from: fromPara, to: para })
     return res.status(200).json(rows[0])
   } catch (err) {
     console.error(err)

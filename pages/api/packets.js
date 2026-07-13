@@ -18,7 +18,7 @@ async function handler(req, res) {
         'INSERT INTO packets (user_id, note_id, title, content) VALUES ($1,$2,$3,$4) RETURNING *',
         [userId, note_id, title || null, content || null]
       )
-      logActivity(pool, userId, 'packet_created', rows[0].id, { title: rows[0].title, note_id: rows[0].note_id })
+      await logActivity(pool, userId, 'packet_created', rows[0].id, { title: rows[0].title, note_id: rows[0].note_id })
       return res.status(201).json(rows[0])
     } catch (err) {
       console.error(err)

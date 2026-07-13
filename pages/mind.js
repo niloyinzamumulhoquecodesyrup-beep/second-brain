@@ -14,7 +14,6 @@ const KIND_LABELS = {
 }
 
 const KIND_ORDER = ['interest_cluster', 'open_loop', 'attention_pattern', 'dormant_revival', 'inferred_goal']
-const PERSONALITY_KIND_ORDER = ['user_model', 'recommendation']
 
 const STALE_DAYS = 2
 
@@ -137,8 +136,9 @@ export default function Mind({ user }) {
     setRunning(false)
   }
 
-  const hasAnything = data && (data.overview || [...KIND_ORDER, ...PERSONALITY_KIND_ORDER].some(k => data.byKind[k]?.length))
-  const hasPersonality = data && PERSONALITY_KIND_ORDER.some(k => data.byKind[k]?.length)
+  const hasAnything = data && (data.overview || [...KIND_ORDER, 'user_model', 'recommendation'].some(k => data.byKind[k]?.length))
+  const hasUserModel = data && data.byKind.user_model?.length > 0
+  const recommendations = data ? data.byKind.recommendation || [] : []
 
   return (
     <Layout user={user}>
@@ -182,15 +182,27 @@ export default function Mind({ user }) {
             ))}
           </div>
 
-          {hasPersonality && (
-            <>
-              <p className="label mb-4 mt-10 !text-violet-300">What you might do</p>
-              <div className="grid gap-6 md:grid-cols-2">
-                {PERSONALITY_KIND_ORDER.map(kind => (
-                  <KindCard key={kind} kind={kind} insights={data.byKind[kind]} accentClass="border-t-2 border-violet-400/30" />
-                ))}
-              </div>
-            </>
+          {hasUserModel && (
+            <div className="mt-10">
+              <KindCard kind="user_model" insights={data.byKind.user_model} accentClass="border-t-2 border-violet-400/30" />
+            </div>
+          )}
+
+          <p className="label mb-4 mt-10 !text-gold-400">What you might do</p>
+          {recommendations.length > 0 ? (
+            <div className="grid gap-6 md:grid-cols-2">
+              {recommendations.map(insight => (
+                <div key={insight.id} className="card border-t-2 border-gold-400/30 p-6">
+                  <div className="divide-y divide-ink-700">
+                    <InsightRow insight={insight} />
+                  </div>
+                </div>
+              ))}
+            </div>
+          ) : (
+            <div className="card p-6">
+              <p className="text-sm text-mist-400">No recommendation researched yet.</p>
+            </div>
           )}
         </>
       )}

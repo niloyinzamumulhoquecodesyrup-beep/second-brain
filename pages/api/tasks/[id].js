@@ -25,13 +25,13 @@ async function handler(req, res) {
     )
     if (!rows[0]) return res.status(404).json({ error: 'Not found' })
     if (done === true && !wasDone) {
-      logActivity(pool, userId, 'task_completed', id, { title: rows[0].title, note_id: rows[0].note_id })
+      await logActivity(pool, userId, 'task_completed', id, { title: rows[0].title, note_id: rows[0].note_id })
     }
     return res.status(200).json(rows[0])
   } else if (req.method === 'DELETE') {
     const { rows: deleted, rowCount } = await pool.query('DELETE FROM tasks WHERE id=$1 AND user_id=$2 RETURNING title, done', [id, userId])
     if (!rowCount) return res.status(404).json({ error: 'Not found' })
-    logActivity(pool, userId, 'task_deleted', id, { title: deleted[0].title, was_done: deleted[0].done })
+    await logActivity(pool, userId, 'task_deleted', id, { title: deleted[0].title, was_done: deleted[0].done })
     return res.status(204).end()
   } else {
     res.setHeader('Allow', ['PUT', 'DELETE'])

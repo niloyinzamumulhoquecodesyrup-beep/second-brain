@@ -22,7 +22,7 @@ async function handler(req, res) {
   } else if (req.method === 'DELETE') {
     const { rows: deleted, rowCount } = await pool.query('DELETE FROM packets WHERE id=$1 AND user_id=$2 RETURNING title', [id, userId])
     if (!rowCount) return res.status(404).json({ error: 'Not found' })
-    logActivity(pool, userId, 'packet_deleted', id, { title: deleted[0].title })
+    await logActivity(pool, userId, 'packet_deleted', id, { title: deleted[0].title })
     return res.status(204).end()
   } else {
     res.setHeader('Allow', ['PUT', 'DELETE'])
