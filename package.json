@@ -10,12 +10,12 @@
     "seed:user": "node scripts/seed-user.js"
   },
   "dependencies": {
-    "next": "13.5.11",
-    "react": "18.2.0",
-    "react-dom": "18.2.0",
-    "pg": "8.11.0",
     "bcryptjs": "2.4.3",
-    "jsonwebtoken": "9.0.2"
+    "jsonwebtoken": "9.0.2",
+    "next": "13.5.11",
+    "pg": "8.11.0",
+    "react": "18.2.0",
+    "react-dom": "18.2.0"
   },
   "devDependencies": {
     "autoprefixer": "10.4.14",

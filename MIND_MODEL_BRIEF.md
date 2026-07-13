@@ -119,43 +119,147 @@ computes, writing results into `mind_insights`:
   you're working toward X, based on these notes" — never as settled fact. The user should be able to see
   and correct it, not just receive it.
 
-## 5. Push notifications
+## 4a. Logical overview — written by Claude Code, on demand, no API key
 
-Real Web Push (service worker + VAPID keys + `push_subscriptions` table from §2) so notifications reach the
-user even with the tab/browser closed — this was an explicit requirement, not an in-page-only notification.
+A new `mind_insights` kind: `overview`. Unlike the other four kinds (template-generated strings from query
+results), this one is a short written paragraph — but it is produced by Claude Code itself, in an
+interactive session, not by the app calling out to an LLM API automatically. No `ANTHROPIC_API_KEY`, no
+embedded LLM call in the app's code. The actual flow, as the user specified it:
 
-- Start at a fixed ~hourly cadence: a lightweight "what are you doing right now?" prompt (tap to
-  quick-tag or type a one-liner), which itself becomes another source of ground truth alongside
-  `device_activity`.
-- Evolve toward adaptive timing once `attention_pattern` insights exist: suppress prompts during detected
-  focus/flow (e.g. mid-focus-session, or a domain/app with long continuous duration), prompt more when the
-  data shows rapid context-switching or idle drift.
-- Also used to deliver: dormant-revival nudges (§4) and goal-alignment nudges (§7). Don't build a second
-  notification pipe for those — same subscription/delivery mechanism, different message source.
+1. The user asks Claude Code (in a terminal, with the Supabase MCP connected) to read all the data for
+   their account — notes, tasks, packets, activity_log, and the current template-generated `mind_insights`
+   rows.
+2. Claude Code reads that data and writes the overview paragraph itself, using its own reasoning — this is
+   the "summary," and it must still follow the mirror-not-oracle rule (§1): describe patterns, don't
+   recommend actions or tell the user what to prioritize.
+3. Claude Code pushes the result directly into Postgres — an `INSERT INTO mind_insights (user_id, kind,
+   summary, source_refs) VALUES (..., 'overview', ..., ...)` — using its own Supabase MCP write access. No
+   separate ingestion endpoint or app code needed for this step; Claude Code already has the DB connection.
+4. The app's job is just to show what's there and prompt for a refresh (§6) — it does not generate this
+   insight itself.
 
-## 6. Daily loop (orchestration)
+`source_refs` for the `overview` row should list the ids of the specific `mind_insights` rows (and/or
+notes) it was drawn from, same as the other kinds — so it's traceable, not just prose Claude Code invented.
 
-This is the operational loop the user specified — implement it literally:
+Schema change required: `mind_insights.kind` CHECK constraint needs `overview` added as an allowed value —
+new migration (`005_mind_overview.sql`), following the same `DROP CONSTRAINT` / `ADD CONSTRAINT` pattern
+`003_inbox.sql` used to extend `notes.para`. Do not edit `004_mind_model.sql` in place.
 
-1. The app continuously accumulates data into `device_activity` and `activity_log` as the user uses the
-   browser and the app (no manual step).
-2. Once a day (scheduled — this can be a Cowork scheduled task hitting an authenticated endpoint, or a
-   cron-triggered API route; either is fine), the app assembles/exposes the relevant window of new data
-   (a "dump" — e.g. a `GET /api/mind/dump?since=...` endpoint returning the raw rows).
-3. The synthesis step (§4) consumes that dump, computes updated insights, and writes them to
-   `mind_insights` (this is "you check it and update what the app should do" — the synthesis step is what
-   decides what the mind_insights state should now say).
-4. The app reads current `mind_insights` state and acts on it: updates the dashboard (§8), decides what
-   the next push notification should say and when (§5), decides whether to surface a dormant-revival or
-   goal-alignment nudge.
-5. This repeats automatically every day. The user should also be able to trigger it manually on demand
-   (e.g. a "check now" action), but the daily automatic run is the primary loop — the user should not have
-   to remember to ask for it.
+On the dashboard (§8), this is the top-of-page field — the other four kinds render below it as the
+supporting detail/evidence it was drawn from.
+
+## 4b. Personality model & research layer — "What You Might Do"
+
+Two new `mind_insights` kinds: `user_model` and `recommendation`. Both are written by Claude Code in the
+manual loop (§6), same as `overview` — no API key, no automated job. Requires another migration
+(`006_mind_personality.sql`) extending the `kind` CHECK constraint, same pattern as §4a.
+
+**`user_model` — the internal picture of the user.**
+
+- **Self-directed, not user-directed.** The user never specifies what to learn about them ("assess my
+  learning style," "track my focus patterns"). The system carries its own built-in map of what is worth
+  understanding about a person in service of the end goal (helping them become better at what they're
+  trying to do): e.g. learning style, focus/attention rhythms, motivation drivers, follow-through
+  patterns, breadth-vs-depth tendency, what they abandon vs. finish. Claude Code works through that map on
+  its own initiative — the "figure out what to figure out" step is already figured out, by design.
+- **Data-volume-aware depth.** Before drawing any conclusion, judge how much data actually exists. Little
+  data → only light, conservative observations. More accumulated data → deeper, more confident
+  characterization, layered in over time. There is no single fixed method — the tier of analysis is chosen
+  from what the data supports, never beyond it. Overreach on thin data is a bug.
+- **Visible and correctable.** Every `user_model` row has `source_refs`, renders on the dashboard, and is
+  framed as "based on these N notes/events, it looks like..." — the user can see it and correct it. Use
+  `superseded_by` to layer newer reads over older ones rather than overwriting history.
+
+**`recommendation` — research-backed "What You Might Do."**
+
+- **Real, credible research — not shallow summaries or generic advice.** When Claude Code produces a
+  recommendation, it goes and finds the actual respected thing: a specific named course (e.g. Coursera's
+  "Learning How to Learn" for learning itself), an established methodology, a real expert framework. The
+  point is that it does the digging most people don't do or don't know how to do.
+- **Confidence split.** Facts about the world ("this course exists, this method is well-regarded") are
+  verifiable — state them plainly and confidently, with the source named so the user can check. Whether
+  the user should act on it stays their call — the mirror-not-oracle rule (§1) applies to prioritization,
+  never watered down into hedging about the resource itself.
+- **Research is dual-purpose.** What Claude Code learns while researching a topic, and how the user
+  responds to what it surfaces (acted on, ignored, corrected), also feeds back into `user_model` — the
+  flow is research → recommendation *and* research → better understanding of the user.
+- `source_refs` on a `recommendation` points at the notes/insights that motivated it; external sources
+  (course URLs, papers) go in the `summary` text or a `metadata` field so they're user-checkable.
+
+On the dashboard (§8), `user_model` and `recommendation` render as their own groups below the four
+template kinds, each expandable to sources like everything else.
+
+## 4c. `mind_knowledge` — the RAG-style methodology store
+
+Claude Code runs the refresh loop (§6) with no memory of the conversations that designed this system.
+Its entire "how to do this job" knowledge must therefore live in the database, retrieved at the start of
+every cycle — a RAG store it also writes refinements back into.
+
+New table (migration `007_mind_knowledge.sql`):
+
+- **`mind_knowledge`** — `id`, `user_id`, `scope` (`general` | `user`), `topic` (short slug, e.g.
+  `meta_map`, `learning_path_method`), `content` (text, markdown), `source_urls` (jsonb array),
+  `created_at`, `updated_at`.
+
+**Seed content already exists** in the repo at `mind_knowledge/*.md` — four researched methodology docs
+(written 2026-07-13, sources embedded):
+
+- `00_meta_map.md` — what to figure out about the user, tiered by data volume; the "figure out what to
+  figure out" step, pre-figured. Includes the learning-styles-myth prohibition and the evidence-backed
+  dimensions to model instead (prior knowledge, self-regulation, motivation, follow-through).
+- `01_learning_path_method.md` — how to build learning paths/roadmaps/mind maps: metalearning
+  (why/what/how, concepts-facts-procedures), established roadmaps first (roadmap.sh, syllabi),
+  prerequisite sequencing vs. chaining, directness/drilling, retrieval+spacing baked into nodes, and the
+  JSON `path` metadata format the dashboard can render as a tree/mind map.
+- `02_resource_research_method.md` — keyword strategy (community-consensus queries first), credibility
+  checklist, confidence split, required output fields (`keywords_used`, why-this-one, runners-up).
+- `03_refinement_loop.md` — the per-cycle protocol: retrieve → apply → refine user-scope calibrations →
+  conservatively refine general-scope methods, with provenance and changelog rules.
+
+Seeding: after creating the table, insert each doc as one `scope='general'` row (`topic` from filename,
+`content` = file text, `source_urls` = the URLs cited in that doc). The DB copy is canonical after
+seeding — refinements happen in the DB, the repo files are just the initial seed.
+
+Loop requirement (add to §6): before writing any `user_model` or `recommendation` insight, Claude Code
+MUST first read all `mind_knowledge` rows and follow them; after writing insights, it writes back
+`scope='user'` calibration rows per `03_refinement_loop.md`. Re-derive the user from live data every
+cycle — user-scope rows store lessons about *how to read this user*, not cached summaries of them.
+
+## 5. Push notifications — DEFERRED for now
+
+Not being built yet. This was originally a real Web Push system (service worker + VAPID keys +
+`push_subscriptions` table) delivering hourly check-ins and nudges — parked in favor of the simpler manual
+loop in §6. The `push_subscriptions` table can stay in the schema unused; revisit this section if/when
+always-on notifications are wanted. Until then, staleness reminders (§6) live on the dashboard itself, not
+as push notifications.
+
+## 6. Daily loop (orchestration) — revised: manual, Claude-Code-driven, no API key
+
+Simplified per the user's actual preferred flow — no automated cron, no serverless function, no LLM API key
+anywhere in the app:
+
+1. The app continuously accumulates data into `activity_log` as the user uses the app (no manual step —
+   already wired up). `device_activity` stays unused per §3.
+2. The user asks Claude Code to read all the data for their account — notes, tasks, packets, activity_log,
+   current `mind_insights` — via its Supabase MCP connection.
+3. Claude Code processes it: it can re-run the existing deterministic job (`POST /api/mind/synthesize`,
+   already built, no LLM needed) for the four template-based kinds, and/or write the `overview` (§4a),
+   `inferred_goal`, `user_model`, and `recommendation` (§4b) insights directly itself, using its own
+   reasoning (plus real web research for recommendations), via a direct `INSERT`/`UPDATE` through its
+   Supabase MCP write access.
+4. Claude Code pushes whatever it produced straight into Postgres — same DB the app reads from, so nothing
+   further is needed for the app to pick it up.
+5. The app's role is just to notice staleness and ask: the dashboard (§8) shows how long it's been since
+   `mind_insights` was last updated, and when that's more than a day or two old, prompts the user with
+   something like "Your Mind Model is N days old — ask Claude Code to refresh it" alongside the exact prompt
+   text to paste into Claude Code. No push infrastructure needed for this — it's a banner on a page the user
+   already opens.
 
 ## 7. Goal-alignment reminders
 
-Periodic (not necessarily daily — avoid nagging) comparison of current activity against the `inferred_goal`
-insights from §4, delivered via §5's push mechanism. Always paired with the source notes the goal was
+Comparison of current activity against the `inferred_goal` insights from §4 (also written by Claude Code
+directly, same as §4a — no API key, no automated job). Delivered via the same dashboard staleness banner as
+§6, not a separate push mechanism (§5 is deferred). Always paired with the source notes the goal was
 inferred from, so it reads as "this looks related/unrelated to what you said you're working toward in
 [note]," not an unexplained judgment call.
 
@@ -164,6 +268,12 @@ inferred from, so it reads as "this looks related/unrelated to what you said you
 New page (e.g. `/mind`) showing current `mind_insights`, grouped by kind, each with its source references
 visible/expandable. This is the human-readable surface of everything above — keep it a mirror (§1), not a
 scorecard or a to-do list dressed up as insight.
+
+Layout: the `overview` insight (§4a) renders first, as a plain paragraph near the top of the page — this is
+"the whole overview," the thing the user most wants to see. Below it, the other four kinds render as
+individual cards/rows grouped by kind, each expandable to show the notes/stats it's traceable to. Include a
+"Run now" button that calls `POST /api/mind/synthesize` and refreshes the page — this is the manual trigger
+already built (§6 step 5), just needs a UI control for it.
 
 ## 8b. Prerequisite: Supabase MCP for Claude Code
 
@@ -194,7 +304,8 @@ with rules:
   while building or testing this feature. The synthesis job only ever reads that data — it should never
   need to mutate it.
 - Writes from this feature only ever target the new tables it introduces
-  (`device_activity`, `activity_log`, `mind_insights`, `push_subscriptions`) — never existing ones.
+  (`device_activity`, `activity_log`, `mind_insights`, `push_subscriptions`, `mind_knowledge`) — never
+  existing ones.
 - When testing a new query, run it read-only (`SELECT`) against the real data first, before wiring up
   anything that writes.
 - If any step is destructive or hard to reverse — even one that seems obviously correct — stop and ask the
@@ -212,6 +323,13 @@ with rules:
 5. Dashboard page (§8) to see the output of #4 before adding notifications.
 6. Push notification infra (§5) and the daily loop wiring (§6).
 7. Goal-alignment reminders (§7), last, since it depends on everything else being trustworthy first.
+8. Personality model & research layer (§4b): migration `006_mind_personality.sql` extending the `kind`
+   constraint with `user_model` and `recommendation`, then dashboard groups for both. The insights
+   themselves need no app code — Claude Code writes them in the manual loop (§6), starting conservative
+   while data volume is low.
+9. Knowledge store (§4c): migration `007_mind_knowledge.sql` creating `mind_knowledge`, then seed it
+   from the repo's `mind_knowledge/*.md` docs (one `scope='general'` row per file). From then on, every
+   refresh cycle starts by reading this table and ends by writing user-scope calibrations back to it.
 
 ## 10. If something's unclear
 
