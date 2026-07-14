@@ -230,6 +230,72 @@ MUST first read all `mind_knowledge` rows and follow them; after writing insight
 `scope='user'` calibration rows per `03_refinement_loop.md`. Re-derive the user from live data every
 cycle — user-scope rows store lessons about *how to read this user*, not cached summaries of them.
 
+## 4d. "PARA method made fun" — Tab 2 on `/mind`
+
+`/mind` gets a second tab alongside the existing overview (§8) — call it "PARA, made fun." One note (or one
+proposed new capture), one question at a time, big tappable buttons, not a form. Each card shows a
+question, the AI's suggested answer highlighted as the default choice, a couple of alternatives, and always
+an explicit "skip" / "write my own." Tapping an answer immediately performs the real underlying write (moves
+`para`, sets `executive_summary` + `distilled`, creates a task, or — new, per correction below — creates a
+new note) through the app's existing write paths. It advances the note through Capture → Organize → Distill
+→ Express; it isn't a quiz layered on top of separate real actions.
+
+**Correction: assumed answers can propose new captures, not just act on existing notes.** While Claude Code
+processes the account (during the same refresh cycle as §6), if it notices something worth capturing that
+doesn't exist yet — a follow-up idea, a gap, something surfaced by research in §4b — it can queue that as a
+question too: "Want me to capture '<draft title>' as a new note?" This means the question types are not a
+fixed list I hand down; Claude Code should propose new question types/captures on its own initiative when
+useful, the same self-directed principle §4b already established for `user_model`.
+
+**Hard invariant, no exceptions: nothing is ever written to `notes`/`tasks`/`packets` without the user
+tapping an answer.** A proposed capture is a queue row, not a note. This is what keeps an AI that can now
+originate content from turning into an AI that quietly edits the user's knowledge base — the queue is the
+airlock.
+
+**Reconciliation, not blind regeneration.** This queue is processed by the *same* refresh loop as §6/§4b —
+it is not a separate feature that ignores prior state. Each cycle: read existing `para_fun_queue` rows
+first. Leave still-valid pending ones alone (don't duplicate or re-ask). Supersede ones the underlying data
+has outgrown (note got edited, task got added some other way, etc.). Only then add genuinely new questions.
+Same supersede-don't-destroy pattern as `mind_insights`.
+
+**Schema** (new migration, e.g. `008_para_fun.sql`, additive per §8c):
+
+- **`para_fun_queue`** — `id`, `user_id`, `note_id` (nullable — null for a `new_capture_proposal`),
+  `question_type` (open text, not a fixed enum — Claude Code can introduce new ones), `question_text`,
+  `options` (jsonb), `assumed_answer` (jsonb — for a capture proposal, the draft title/content), `section`
+  (AI-assigned grouping, e.g. "Still in Inbox," "Missing a summary," "Gone quiet," "Worth capturing"),
+  `priority_rank` (int), `status` (`pending|answered|skipped|superseded`), `answer` (jsonb, filled on
+  response), `source_refs` (jsonb — same traceability rule as `mind_insights`: every assumed answer must
+  cite what it's based on), `created_at`, `answered_at`.
+
+**Priority and sectioning reuse existing work**, not new logic: `open_loop` and `dormant_revival` already
+identify which notes need attention — build the queue from those plus Inbox age. Cap the batch per cycle
+(e.g. 5-8 pending items, including at most 2-3 new-capture proposals) rather than dumping the whole backlog
+— same one-thing-at-a-time rule as §1's ADHD constraints.
+
+**Guardrailed prompt** — add this as an explicit step in the refresh loop (§6) / the `REFRESH_PROMPT` text in
+`pages/mind.js`, not left implicit:
+
+> When processing the PARA-fun queue: first read all existing `para_fun_queue` rows for this account. Leave
+> still-valid pending rows untouched — do not duplicate or re-ask a question that's already waiting for an
+> answer. Mark a row `superseded` if the note/data it was about has changed enough to invalidate it. Only
+> after that, add new questions — including proposing a new capture if your processing surfaced something
+> genuinely worth capturing.
+>
+> Hard rules, no exceptions: (1) never insert directly into `notes`, `tasks`, or `packets` as part of this
+> step — every proposal, including a new capture, is a `para_fun_queue` row requiring the user's tap before
+> anything real is created; (2) cap total new rows added this cycle (pending + new) at 5-8, at most 2-3 of
+> which are `new_capture_proposal`s — do not flood the queue; (3) before proposing a new capture, check
+> existing notes/tags for a near-duplicate and skip the proposal if one already covers it; (4) every
+> `assumed_answer` must have non-empty `source_refs` explaining what data or reasoning it came from — an
+> assumed answer with no traceable source is a bug, not a shortcut; (5) an invented `question_type` must
+> still use the same row shape (`question_text`, `options`, `assumed_answer`, `section`, `priority_rank`) —
+> there is no side channel for writing data outside this mechanism.
+
+On the dashboard, answering a question calls a route that performs the real write (reusing the existing
+notes/tasks/para update logic) and marks the row answered in the same request, then advances to the next
+pending item in priority order.
+
 ## 5. Push notifications — DEFERRED for now
 
 Not being built yet. This was originally a real Web Push system (service worker + VAPID keys +

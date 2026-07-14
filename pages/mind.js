@@ -17,7 +17,11 @@ const KIND_ORDER = ['interest_cluster', 'open_loop', 'attention_pattern', 'dorma
 
 const STALE_DAYS = 2
 
-const REFRESH_PROMPT = `Refresh my Mind Model following the refinement loop (mind_knowledge topic "refinement_loop"): read all mind_knowledge rows first, then my notes, tasks, packets, activity_log, and current mind_insights via the Supabase MCP. Re-run POST /api/mind/synthesize to refresh the four templated kinds (interest_cluster, open_loop, attention_pattern, dormant_revival). Then write a fresh "overview" in your own words (mirror, not oracle — describe, don't direct), and update "user_model"/"recommendation" per the meta_map/learning_path_method/resource_research_method docs at whatever tier the data supports. Write scope='user' calibration rows back to mind_knowledge. Insert everything via the Supabase MCP, superseding prior rows of each kind.`
+const REFRESH_PROMPT = `Refresh my Mind Model following the refinement loop (mind_knowledge topic "refinement_loop"): read all mind_knowledge rows first, then my notes, tasks, packets, activity_log, and current mind_insights via the Supabase MCP. Re-run POST /api/mind/synthesize to refresh the four templated kinds (interest_cluster, open_loop, attention_pattern, dormant_revival). Then write a fresh "overview" in your own words (mirror, not oracle — describe, don't direct), and update "user_model"/"recommendation" per the meta_map/learning_path_method/resource_research_method docs at whatever tier the data supports. Write scope='user' calibration rows back to mind_knowledge. Insert everything via the Supabase MCP, superseding prior rows of each kind.
+
+Then process the PARA-fun queue (para_fun_queue): first read all existing rows for this account. Leave still-valid pending rows untouched — do not duplicate or re-ask a question that's already waiting for an answer. Mark a row superseded if the note/data it was about has changed enough to invalidate it. Only after that, add new questions — including proposing a new capture if your processing surfaced something genuinely worth capturing. Build questions from the current open_loop/dormant_revival insights plus Inbox age, not new logic.
+
+Hard rules, no exceptions: (1) never insert directly into notes, tasks, or packets as part of this step — every proposal, including a new capture, is a para_fun_queue row requiring the user's tap before anything real is created; (2) cap total new rows added this cycle (pending + new) at 5-8, at most 2-3 of which are new_capture_proposals — do not flood the queue; (3) before proposing a new capture, check existing notes/tags for a near-duplicate and skip the proposal if one already covers it; (4) every assumed_answer must have non-empty source_refs explaining what data or reasoning it came from — an assumed answer with no traceable source is a bug, not a shortcut; (5) an invented question_type must still use the same row shape (question_text, options, assumed_answer, section, priority_rank) — there is no side channel for writing data outside this mechanism.`
 
 function daysAgo(dateStr) {
   return Math.floor((Date.now() - new Date(dateStr).getTime()) / (1000 * 60 * 60 * 24))
@@ -110,43 +114,14 @@ function KindCard({ kind, insights, accentClass }) {
   )
 }
 
-export default function Mind({ user }) {
-  const [data, setData] = useState(null)
-  const [loading, setLoading] = useState(true)
-  const [running, setRunning] = useState(false)
-
-  function load() {
-    setLoading(true)
-    return fetch('/api/mind/insights')
-      .then(r => r.json())
-      .then(d => {
-        setData(d)
-        setLoading(false)
-      })
-  }
-
-  useEffect(() => {
-    load()
-  }, [])
-
-  async function runNow() {
-    setRunning(true)
-    await fetch('/api/mind/synthesize', { method: 'POST' })
-    await load()
-    setRunning(false)
-  }
-
+function OverviewTab({ data, loading, running, runNow }) {
   const hasAnything = data && (data.overview || [...KIND_ORDER, 'user_model', 'recommendation'].some(k => data.byKind[k]?.length))
   const hasUserModel = data && data.byKind.user_model?.length > 0
   const recommendations = data ? data.byKind.recommendation || [] : []
 
   return (
-    <Layout user={user}>
-      <div className="mb-10 flex flex-wrap items-end justify-between gap-4">
-        <div>
-          <p className="label mb-2">Mind Model</p>
-          <h1 className="font-serif text-4xl font-light text-white">Overview</h1>
-        </div>
+    <>
+      <div className="mb-8 flex justify-end">
         <button onClick={runNow} disabled={running} className="btn-primary">
           {running ? 'Running…' : 'Run now'}
         </button>
@@ -205,6 +180,195 @@ export default function Mind({ user }) {
             </div>
           )}
         </>
+      )}
+    </>
+  )
+}
+
+// §4d: one question at a time, big tappable buttons, not a form. The assumed
+// answer is highlighted as the default; "write my own" only shows up when the
+// row's own options include a custom entry (sort_inbox questions don't, since
+// the four PARA buckets are already exhaustive).
+function ParaFunCard({ item, onAnswer, submitting }) {
+  const [customText, setCustomText] = useState('')
+  const [showCustom, setShowCustom] = useState(false)
+
+  const assumedLabel = item.assumed_answer?.label
+
+  function pick(option) {
+    if (option.action === 'custom') {
+      setShowCustom(true)
+      return
+    }
+    onAnswer(item.id, { action: option.action, value: option.value })
+  }
+
+  function submitCustom() {
+    if (!customText.trim()) return
+    let value
+    if (item.question_type === 'sort_inbox') return // no custom path for an exhaustive choice
+    if (item.question_type === 'new_capture_proposal') value = { title: customText.trim(), para: 'inbox', content: null }
+    else if (item.assumed_answer?.action === 'distill') value = { executive_summary: customText.trim() }
+    else value = { title: customText.trim() }
+    const action = item.question_type === 'new_capture_proposal' ? 'create_capture' : (item.assumed_answer?.action === 'distill' ? 'distill' : 'create_task')
+    onAnswer(item.id, { action, value })
+  }
+
+  return (
+    <div className="card border-t-2 border-emerald-400/40 p-8">
+      <p className="label mb-3 !text-emerald-300">{item.section}</p>
+      <h2 className="mb-6 font-serif text-2xl font-light text-white">{item.question_text}</h2>
+
+      {!showCustom ? (
+        <div className="flex flex-wrap gap-3">
+          {item.options.map((opt, i) => {
+            const isAssumed = opt.label === assumedLabel
+            const isSkip = opt.action === 'skip'
+            return (
+              <button
+                key={i}
+                onClick={() => pick(opt)}
+                disabled={submitting}
+                className={
+                  isAssumed
+                    ? 'btn-primary !px-6 !py-3 text-base'
+                    : isSkip
+                      ? 'btn-ghost !px-4'
+                      : 'btn-secondary !px-6 !py-3 text-base'
+                }
+              >
+                {isAssumed ? `${opt.label} (suggested)` : opt.label}
+              </button>
+            )
+          })}
+        </div>
+      ) : (
+        <div className="space-y-3">
+          <input
+            className="input"
+            autoFocus
+            placeholder="Write your own…"
+            value={customText}
+            onChange={e => setCustomText(e.target.value)}
+            onKeyDown={e => { if (e.key === 'Enter') submitCustom() }}
+          />
+          <div className="flex gap-3">
+            <button onClick={submitCustom} disabled={submitting || !customText.trim()} className="btn-primary">Submit</button>
+            <button onClick={() => setShowCustom(false)} className="btn-secondary">Back</button>
+          </div>
+        </div>
+      )}
+
+      <SourceRefs refs={item.source_refs} />
+    </div>
+  )
+}
+
+function ParaFunTab({ queue, loading, onAnswer, submitting }) {
+  if (loading) return <p className="text-mist-400">Loading…</p>
+  if (queue.length === 0) {
+    return (
+      <p className="text-sm text-mist-400">
+        Nothing waiting right now. Ask Claude Code to refresh the Mind Model (Overview tab) to generate new questions.
+      </p>
+    )
+  }
+
+  const [current, ...rest] = queue
+
+  return (
+    <>
+      <ParaFunCard key={current.id} item={current} onAnswer={onAnswer} submitting={submitting} />
+      {rest.length > 0 && (
+        <p className="mt-4 text-center text-xs text-mist-500">{rest.length} more waiting</p>
+      )}
+    </>
+  )
+}
+
+export default function Mind({ user }) {
+  const [tab, setTab] = useState('overview')
+  const [data, setData] = useState(null)
+  const [loading, setLoading] = useState(true)
+  const [running, setRunning] = useState(false)
+  const [queue, setQueue] = useState([])
+  const [queueLoading, setQueueLoading] = useState(true)
+  const [submitting, setSubmitting] = useState(false)
+
+  function load() {
+    setLoading(true)
+    return fetch('/api/mind/insights')
+      .then(r => r.json())
+      .then(d => {
+        setData(d)
+        setLoading(false)
+      })
+  }
+
+  function loadQueue() {
+    setQueueLoading(true)
+    return fetch('/api/mind/queue')
+      .then(r => r.json())
+      .then(rows => {
+        setQueue(rows)
+        setQueueLoading(false)
+      })
+  }
+
+  useEffect(() => {
+    load()
+    loadQueue()
+  }, [])
+
+  async function runNow() {
+    setRunning(true)
+    await fetch('/api/mind/synthesize', { method: 'POST' })
+    await load()
+    setRunning(false)
+  }
+
+  async function answerQueue(id, { action, value }) {
+    setSubmitting(true)
+    setQueue(prev => prev.filter(q => q.id !== id))
+    try {
+      const res = await fetch(`/api/mind/queue/${id}/answer`, {
+        method: 'POST',
+        headers: { 'content-type': 'application/json' },
+        body: JSON.stringify({ action, value })
+      })
+      if (!res.ok) await loadQueue() // resync if the optimistic removal was wrong
+    } finally {
+      setSubmitting(false)
+    }
+  }
+
+  return (
+    <Layout user={user}>
+      <div className="mb-8 flex flex-wrap items-end justify-between gap-4">
+        <div>
+          <p className="label mb-2">Mind Model</p>
+          <h1 className="font-serif text-4xl font-light text-white">{tab === 'overview' ? 'Overview' : 'PARA, made fun'}</h1>
+        </div>
+        <div className="flex gap-2">
+          <button
+            onClick={() => setTab('overview')}
+            className={`chip capitalize ${tab === 'overview' ? 'border-emerald-400/50 text-emerald-300' : ''}`}
+          >
+            Overview
+          </button>
+          <button
+            onClick={() => setTab('parafun')}
+            className={`chip capitalize ${tab === 'parafun' ? 'border-emerald-400/50 text-emerald-300' : ''}`}
+          >
+            PARA, made fun{queue.length > 0 ? ` (${queue.length})` : ''}
+          </button>
+        </div>
+      </div>
+
+      {tab === 'overview' ? (
+        <OverviewTab data={data} loading={loading} running={running} runNow={runNow} />
+      ) : (
+        <ParaFunTab queue={queue} loading={queueLoading} onAnswer={answerQueue} submitting={submitting} />
       )}
     </Layout>
   )
