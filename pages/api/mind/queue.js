@@ -12,11 +12,15 @@ async function handler(req, res) {
   if (!hasDb()) return res.status(500).json({ error: 'Database not configured' })
   const pool = getPool()
 
+  // note_para is joined in (not stored on the queue row itself) so the client can theme
+  // by PARA bucket — needed for Voice Flow's (§4e) wave-visualizer accent color.
   const { rows } = await pool.query(
-    `SELECT id, note_id, question_type, question_text, options, assumed_answer, section, priority_rank, source_refs, created_at
-     FROM para_fun_queue
-     WHERE user_id = $1 AND status = 'pending'
-     ORDER BY priority_rank ASC, created_at ASC`,
+    `SELECT q.id, q.note_id, q.question_type, q.question_text, q.options, q.assumed_answer,
+            q.section, q.priority_rank, q.source_refs, q.created_at, n.para AS note_para
+     FROM para_fun_queue q
+     LEFT JOIN notes n ON n.id = q.note_id AND n.user_id = q.user_id
+     WHERE q.user_id = $1 AND q.status = 'pending'
+     ORDER BY q.priority_rank ASC, q.created_at ASC`,
     [req.user.id]
   )
 

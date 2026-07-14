@@ -1,7 +1,179 @@
-import { useEffect, useState } from 'react'
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import Link from 'next/link'
 import Layout from '../components/Layout'
+import WaveVisualizer from '../components/WaveVisualizer'
+import ParticleField from '../components/ParticleField'
 import { requireSessionSSR } from '../lib/pageAuth'
+
+// §4e/§4f: same rose/emerald/violet/gold/mist accent family as lib/paraTheme.js
+// (Tailwind class names there, hex here since the visualizer paints on canvas) —
+// inbox/project/area/resource/archive in order. new_capture_proposal rows have no
+// note_para, so they fall back to the inbox accent per spec.
+const PARA_COLORS = {
+  inbox: '#fb7185',
+  project: '#5eead4',
+  area: '#b7a6f7',
+  resource: '#f0d9a3',
+  archive: '#8a929b'
+}
+
+// §4f: fixed accent per section for the read-only insight kinds (which have no PARA
+// bucket of their own) — reuses the same emerald/violet/gold groupings the flat
+// Overview tab already established. Actionable queue sections use PARA_COLORS per
+// item instead (assigned below in sectionItemColor).
+const ACCENT_HEX = {
+  emerald: '#5eead4',
+  violet: '#b7a6f7',
+  gold: '#f0d9a3',
+  rose: '#fb7185'
+}
+
+// §4f "Sections, selectable, not a queue" — a navigation layer over data that
+// already exists, no new taxonomy. Five templated mind_insights kinds, the two
+// Claude-Code-written kinds, and the two para_fun_queue groupings (actionable vs.
+// new-capture proposals).
+const SECTION_DEFS = [
+  { id: 'interest_cluster', label: 'Interest clusters', kind: 'insight', insightKind: 'interest_cluster', accent: 'emerald' },
+  { id: 'open_loop', label: 'Open loops', kind: 'insight', insightKind: 'open_loop', accent: 'emerald' },
+  { id: 'dormant_revival', label: 'Dormant revival', kind: 'insight', insightKind: 'dormant_revival', accent: 'emerald' },
+  { id: 'attention_pattern', label: 'Attention patterns', kind: 'insight', insightKind: 'attention_pattern', accent: 'emerald' },
+  { id: 'inferred_goal', label: 'Inferred goals', kind: 'insight', insightKind: 'inferred_goal', accent: 'emerald' },
+  { id: 'user_model', label: 'How you seem to work', kind: 'insight', insightKind: 'user_model', accent: 'violet' },
+  { id: 'recommendation', label: 'What you might do', kind: 'insight', insightKind: 'recommendation', accent: 'gold' },
+  { id: 'queue_actionable', label: 'Sort, distill, express', kind: 'queue', queueFilter: 'actionable', accent: 'rose' },
+  { id: 'new_capture', label: 'New captures', kind: 'queue', queueFilter: 'new_capture_proposal', accent: 'gold' }
+]
+
+function sectionItems(def, data, queue) {
+  if (def.kind === 'insight') return (data?.byKind?.[def.insightKind]) || []
+  if (def.queueFilter === 'new_capture_proposal') return queue.filter(q => q.question_type === 'new_capture_proposal')
+  return queue.filter(q => q.question_type !== 'new_capture_proposal')
+}
+
+function sectionItemColor(def, item) {
+  if (def.kind === 'queue') return PARA_COLORS[item?.note_para] || PARA_COLORS.inbox
+  return ACCENT_HEX[def.accent]
+}
+
+function sectionItemText(def, item) {
+  return def.kind === 'queue' ? item.question_text : item.summary
+}
+
+// §4f step 3: simple universal commands recognized inside any section, typed through
+// the same custom-text-input path already built for answers — not open-ended chat.
+function matchUniversalCommand(raw) {
+  const t = (raw || '').trim().toLowerCase()
+  if (!t) return null
+  if (['next', 'continue', 'move on'].includes(t)) return 'next'
+  if (t === 'skip') return 'skip'
+  if (['back to brain', 'back', 'home', 'exit'].includes(t)) return 'home'
+  return null
+}
+
+function relativeTimeLabel(date) {
+  if (!date) return 'never'
+  const ms = Date.now() - date.getTime()
+  const days = Math.floor(ms / (1000 * 60 * 60 * 24))
+  if (days <= 0) return 'today'
+  if (days === 1) return '1 day ago'
+  return `${days} days ago`
+}
+
+// §4f voice bug fix: (1) Chrome/most browsers silently block speechSynthesis unless
+// the very first speak() in the page's lifetime happens synchronously inside a real
+// click handler — every speak() call here is invoked directly from an onClick/onSubmit,
+// never from a useEffect on mount, so the very first one always qualifies. (2) Chrome's
+// *default* voice (when none is picked) is frequently a remote, network-fetched voice —
+// if that fetch stalls, the utterance hangs forever with speaking:true and no onstart/
+// onend ever firing (confirmed against a live Chrome/macOS session: this exact
+// symptom, unrelated to any gesture/GC issue — see Chromium issue 374263394). The fix
+// is the opposite of the brief's original guidance: explicitly prefer a *local*
+// (on-device, localService===true) voice once the list has loaded, instead of leaving
+// utter.voice unset. (3) the SpeechSynthesisUtterance is kept in a ref so it isn't
+// garbage-collected before its events fire (a real, separately-confirmed Chrome bug).
+function useBrainVoice() {
+  const [speaking, setSpeaking] = useState(false)
+  const [muted, setMuted] = useState(false)
+  const mutedRef = useRef(false)
+  const utteranceRef = useRef(null)
+  const localVoiceRef = useRef(null)
+
+  useEffect(() => { mutedRef.current = muted }, [muted])
+  useEffect(() => () => {
+    if (typeof window !== 'undefined' && 'speechSynthesis' in window) window.speechSynthesis.cancel()
+  }, [])
+  // Chrome's voice list is empty on first call — call getVoices() eagerly on mount
+  // (not tied to a gesture, just enumeration) and again once 'voiceschanged' fires, and
+  // cache the first local voice found so speak() never has to wait on it.
+  useEffect(() => {
+    if (typeof window === 'undefined' || !('speechSynthesis' in window)) return
+    function pickLocalVoice() {
+      const voices = window.speechSynthesis.getVoices()
+      const local = voices.find(v => v.localService && v.lang?.startsWith('en')) || voices.find(v => v.localService)
+      if (local) localVoiceRef.current = local
+    }
+    pickLocalVoice()
+    window.speechSynthesis.addEventListener('voiceschanged', pickLocalVoice)
+    return () => window.speechSynthesis.removeEventListener('voiceschanged', pickLocalVoice)
+  }, [])
+
+  const speak = useCallback((text) => {
+    if (typeof window === 'undefined' || !('speechSynthesis' in window)) return
+    const synth = window.speechSynthesis
+    if (mutedRef.current || !text) {
+      synth.cancel()
+      setSpeaking(false)
+      return
+    }
+    function fire() {
+      const utter = new SpeechSynthesisUtterance(text)
+      utter.rate = 0.98
+      if (localVoiceRef.current) utter.voice = localVoiceRef.current
+      utter.onstart = () => setSpeaking(true)
+      utter.onend = () => setSpeaking(false)
+      utter.onerror = () => setSpeaking(false)
+      utteranceRef.current = utter
+      synth.speak(utter)
+    }
+    // Chrome silently drops speak() if cancel() ran in the same tick — only cancel
+    // (and only then delay) when something is actually queued; the page's very first
+    // speak() call, with nothing to cancel, still fires synchronously inside the
+    // click handler that triggered it, which is what satisfies the gesture gating.
+    if (synth.speaking || synth.pending) {
+      synth.cancel()
+      setTimeout(fire, 50)
+    } else {
+      fire()
+    }
+  }, [])
+
+  const cancel = useCallback(() => {
+    if (typeof window !== 'undefined' && 'speechSynthesis' in window) window.speechSynthesis.cancel()
+    setSpeaking(false)
+  }, [])
+
+  const toggleMute = useCallback(() => {
+    setMuted(m => {
+      const next = !m
+      if (next && typeof window !== 'undefined' && 'speechSynthesis' in window) window.speechSynthesis.cancel()
+      if (next) setSpeaking(false)
+      return next
+    })
+  }, [])
+
+  return { speak, cancel, speaking, muted, toggleMute }
+}
+
+// Mounted content fades/scales in on mount rather than popping — the "convergence /
+// push-in" feel §4f asks for, without needing a JS animation library.
+function useMountTransition() {
+  const [entered, setEntered] = useState(false)
+  useEffect(() => {
+    const raf = requestAnimationFrame(() => setEntered(true))
+    return () => cancelAnimationFrame(raf)
+  }, [])
+  return entered
+}
 
 const KIND_LABELS = {
   interest_cluster: 'Interest clusters',
@@ -185,11 +357,15 @@ function OverviewTab({ data, loading, running, runNow }) {
   )
 }
 
-// §4d: one question at a time, big tappable buttons, not a form. The assumed
-// answer is highlighted as the default; "write my own" only shows up when the
-// row's own options include a custom entry (sort_inbox questions don't, since
-// the four PARA buckets are already exhaustive).
-function ParaFunCard({ item, onAnswer, submitting }) {
+// §4d/§4e/§4f shared: the answer-picking + custom-text-input mechanic. Used by
+// ParaFunCard's card container and by Voice Flow / Visit Your Brain's immersive
+// container — only the container differs, per §4e's "reuse, don't reimplement" rule.
+// Keyed by item.id at the call site so its custom-text state resets cleanly between
+// questions. `onCommand`, when passed (Visit Your Brain only), lets typed universal
+// commands ("next"/"skip"/"back to brain") short-circuit before falling through to a
+// literal answer — omitted entirely for ParaFunCard so existing §4d behavior is
+// untouched.
+function AnswerControls({ item, onAnswer, submitting, dimmed, onCommand }) {
   const [customText, setCustomText] = useState('')
   const [showCustom, setShowCustom] = useState(false)
 
@@ -205,6 +381,15 @@ function ParaFunCard({ item, onAnswer, submitting }) {
 
   function submitCustom() {
     if (!customText.trim()) return
+    if (onCommand) {
+      const cmd = matchUniversalCommand(customText)
+      if (cmd) {
+        onCommand(cmd)
+        setCustomText('')
+        setShowCustom(false)
+        return
+      }
+    }
     let value
     if (item.question_type === 'sort_inbox') return // no custom path for an exhaustive choice
     if (item.question_type === 'new_capture_proposal') value = { title: customText.trim(), para: 'inbox', content: null }
@@ -215,10 +400,7 @@ function ParaFunCard({ item, onAnswer, submitting }) {
   }
 
   return (
-    <div className="card border-t-2 border-emerald-400/40 p-8">
-      <p className="label mb-3 !text-emerald-300">{item.section}</p>
-      <h2 className="mb-6 font-serif text-2xl font-light text-white">{item.question_text}</h2>
-
+    <div className={`transition-opacity duration-500 ${dimmed ? 'opacity-40' : 'opacity-100'}`}>
       {!showCustom ? (
         <div className="flex flex-wrap gap-3">
           {item.options.map((opt, i) => {
@@ -247,7 +429,7 @@ function ParaFunCard({ item, onAnswer, submitting }) {
           <input
             className="input"
             autoFocus
-            placeholder="Write your own…"
+            placeholder={onCommand ? 'Write your own… or type "next" / "skip" / "back to brain"' : 'Write your own…'}
             value={customText}
             onChange={e => setCustomText(e.target.value)}
             onKeyDown={e => { if (e.key === 'Enter') submitCustom() }}
@@ -258,7 +440,20 @@ function ParaFunCard({ item, onAnswer, submitting }) {
           </div>
         </div>
       )}
+    </div>
+  )
+}
 
+// §4d: one question at a time, big tappable buttons, not a form. The assumed
+// answer is highlighted as the default; "write my own" only shows up when the
+// row's own options include a custom entry (sort_inbox questions don't, since
+// the four PARA buckets are already exhaustive).
+function ParaFunCard({ item, onAnswer, submitting }) {
+  return (
+    <div className="card border-t-2 border-emerald-400/40 p-8">
+      <p className="label mb-3 !text-emerald-300">{item.section}</p>
+      <h2 className="mb-6 font-serif text-2xl font-light text-white">{item.question_text}</h2>
+      <AnswerControls key={item.id} item={item} onAnswer={onAnswer} submitting={submitting} />
       <SourceRefs refs={item.source_refs} />
     </div>
   )
@@ -286,14 +481,182 @@ function ParaFunTab({ queue, loading, onAnswer, submitting }) {
   )
 }
 
+// §4f: a small always-visible command box for read-only insight sections, which have
+// no answer mechanic (and so no AnswerControls/"write my own" toggle) to hang typed
+// commands off of. Actionable sections get the same command path via AnswerControls'
+// onCommand instead — this is only for the other five.
+function CommandInput({ onCommand, placeholder }) {
+  const [text, setText] = useState('')
+  function submit() {
+    const cmd = matchUniversalCommand(text)
+    if (cmd) {
+      onCommand(cmd)
+      setText('')
+    }
+  }
+  return (
+    <div className="mt-6 flex justify-center gap-2">
+      <input
+        className="input max-w-xs !py-2 text-xs"
+        placeholder={placeholder}
+        value={text}
+        onChange={e => setText(e.target.value)}
+        onKeyDown={e => { if (e.key === 'Enter') submit() }}
+      />
+      <button onClick={submit} className="btn-secondary !px-3 !py-2 text-xs">Go</button>
+    </div>
+  )
+}
+
+// §4f step 2: the entry screen — a full-bleed particle field with the section nodes
+// floating over it. Nothing here is a list to scan top-to-bottom; it's a map to pick
+// a point on. Clicking a node is the deliberate "begin" tap for that section's voice.
+function BrainField({ data, queue, lastUpdatedLabel, onSelectSection, fieldRef }) {
+  const entered = useMountTransition()
+  return (
+    <div className="relative flex min-h-[560px] flex-col items-center justify-center overflow-hidden rounded-2xl border border-ink-700 bg-ink-950 px-6 py-16">
+      <ParticleField ref={fieldRef} className="absolute inset-0 h-full w-full" />
+      <div className="pointer-events-none absolute inset-0 bg-gradient-to-b from-ink-950/50 via-transparent to-ink-950/80" />
+
+      <div
+        className={`relative z-10 flex flex-col items-center transition-all duration-700 ease-out ${entered ? 'translate-y-0 opacity-100' : 'translate-y-3 opacity-0'}`}
+      >
+        <p className="label mb-2 !text-emerald-300">Your brain</p>
+        <p className="mb-10 text-sm text-mist-400">last updated {lastUpdatedLabel}</p>
+
+        <div className="grid max-w-3xl grid-cols-2 gap-4 sm:grid-cols-3">
+          {SECTION_DEFS.map(def => {
+            const items = sectionItems(def, data, queue)
+            const accentHex = ACCENT_HEX[def.accent]
+            return (
+              <button
+                key={def.id}
+                onClick={() => onSelectSection(def)}
+                className="group flex flex-col items-center gap-2 rounded-2xl border border-ink-600/80 bg-ink-900/60 px-4 py-6 text-center backdrop-blur transition hover:-translate-y-0.5"
+                style={{ borderColor: 'var(--section-border, rgba(255,255,255,0.08))' }}
+                onMouseEnter={e => { e.currentTarget.style.setProperty('--section-border', `${accentHex}80`) }}
+                onMouseLeave={e => { e.currentTarget.style.setProperty('--section-border', 'rgba(255,255,255,0.08)') }}
+              >
+                <span className="h-2.5 w-2.5 rounded-full" style={{ background: accentHex, boxShadow: `0 0 12px ${accentHex}` }} />
+                <span className="text-sm text-mist-100 group-hover:text-white">{def.label}</span>
+                <span className="text-xs text-mist-500">{items.length > 0 ? items.length : 'nothing yet'}</span>
+              </button>
+            )
+          })}
+        </div>
+      </div>
+    </div>
+  )
+}
+
+// §4f step 2, inside a section: read-only insight kinds get a calm visualizer + voice
+// readout with Next/Back to brain; actionable queue kinds (para_fun_queue) reuse the
+// exact §4d/§4e mechanic — same WaveVisualizer, same AnswerControls, same onAnswer.
+function BrainSection({ def, items, onAnswer, onExit, speak, cancel, speaking, muted, toggleMute, submitting }) {
+  const entered = useMountTransition()
+  const [index, setIndex] = useState(0)
+  const isQueue = def.kind === 'queue'
+  const clampedIndex = items.length ? Math.min(index, items.length - 1) : 0
+  const current = items[clampedIndex]
+
+  function goNext() {
+    if (items.length < 2) return
+    const nextIndex = (clampedIndex + 1) % items.length
+    setIndex(nextIndex)
+    speak(sectionItemText(def, items[nextIndex]))
+  }
+
+  function handleBackToBrain() {
+    cancel()
+    onExit()
+  }
+
+  function handleAnswer(id, payload) {
+    onAnswer(id, payload)
+    if (items.length > 1) goNext()
+    else handleBackToBrain()
+  }
+
+  function handleCommand(cmd) {
+    if (cmd === 'next') goNext()
+    else if (cmd === 'skip') {
+      if (isQueue && current) handleAnswer(current.id, { action: 'skip' })
+      else goNext()
+    } else if (cmd === 'home') handleBackToBrain()
+  }
+
+  const color = current ? sectionItemColor(def, current) : ACCENT_HEX[def.accent]
+  const caption = !current
+    ? `No ${def.label.toLowerCase()} recorded yet.`
+    : isQueue
+      ? current.question_text
+      : def.label
+
+  return (
+    <div className={`flex flex-col items-center transition-all duration-500 ease-out ${entered ? 'scale-100 opacity-100' : 'scale-95 opacity-0'}`}>
+      <div className="relative w-full overflow-hidden rounded-2xl border border-ink-700 bg-ink-950">
+        <WaveVisualizer color={color} speaking={speaking} className="h-[300px] w-full sm:h-[380px]" />
+
+        <div className="pointer-events-none absolute inset-0 flex items-center justify-center px-8 sm:px-16">
+          <p className="max-w-2xl text-center font-serif text-2xl font-light text-white [text-shadow:0_2px_24px_rgba(0,0,0,0.7)] sm:text-3xl">
+            {caption}
+          </p>
+        </div>
+
+        <p className="absolute left-5 top-5 text-[11px] uppercase tracking-[0.2em] text-mist-400">
+          {def.label}{items.length > 1 ? ` · ${clampedIndex + 1}/${items.length}` : ''}
+        </p>
+
+        <button
+          onClick={() => (speaking ? cancel() : toggleMute())}
+          className="absolute right-5 top-5 rounded-full border border-ink-600/80 bg-ink-950/60 px-3 py-1.5 text-xs text-mist-300 backdrop-blur transition hover:border-mist-300/50 hover:text-white"
+        >
+          {speaking ? 'Skip narration' : muted ? 'Unmute voice' : 'Mute voice'}
+        </button>
+      </div>
+
+      <div className="mt-8 w-full max-w-xl">
+        {!current ? null : isQueue ? (
+          <AnswerControls
+            key={current.id}
+            item={current}
+            onAnswer={handleAnswer}
+            submitting={submitting}
+            dimmed={speaking}
+            onCommand={handleCommand}
+          />
+        ) : (
+          <div className={`transition-opacity duration-500 ${speaking ? 'opacity-40' : 'opacity-100'}`}>
+            <p className="text-sm leading-relaxed text-mist-100">{current.summary}</p>
+          </div>
+        )}
+        {current && <SourceRefs refs={current.source_refs} />}
+      </div>
+
+      <div className="mt-6 flex justify-center gap-3">
+        <button onClick={handleBackToBrain} className="btn-secondary">← Back to brain</button>
+        {items.length > 1 && (
+          <button onClick={goNext} className="btn-ghost">Next →</button>
+        )}
+      </div>
+
+      {!isQueue && <CommandInput onCommand={handleCommand} placeholder='Type "next" or "back to brain"' />}
+    </div>
+  )
+}
+
 export default function Mind({ user }) {
   const [tab, setTab] = useState('overview')
+  const [mode, setMode] = useState('brain') // §4f: 'brain' (default, the destination) | 'list' (§1 escape hatch)
+  const [activeSectionId, setActiveSectionId] = useState(null)
   const [data, setData] = useState(null)
   const [loading, setLoading] = useState(true)
   const [running, setRunning] = useState(false)
   const [queue, setQueue] = useState([])
   const [queueLoading, setQueueLoading] = useState(true)
   const [submitting, setSubmitting] = useState(false)
+  const fieldRef = useRef(null)
+  const voice = useBrainVoice()
 
   function load() {
     setLoading(true)
@@ -342,33 +705,113 @@ export default function Mind({ user }) {
     }
   }
 
+  const brainUpdatedAt = useMemo(() => {
+    const dates = []
+    if (data?.lastUpdated) dates.push(new Date(data.lastUpdated).getTime())
+    for (const q of queue) if (q.created_at) dates.push(new Date(q.created_at).getTime())
+    return dates.length ? new Date(Math.max(...dates)) : null
+  }, [data, queue])
+  const brainUpdatedLabel = relativeTimeLabel(brainUpdatedAt)
+
+  const activeSectionDef = SECTION_DEFS.find(d => d.id === activeSectionId) || null
+  const activeSectionItemsList = activeSectionDef ? sectionItems(activeSectionDef, data, queue) : []
+
+  // §4f voice fix note (1): this click handler is the "deliberate begin tap" — the
+  // very first speechSynthesis.speak() in the page's life happens synchronously here,
+  // inside a real user gesture, so the browser doesn't silently swallow it.
+  function enterBrain() {
+    setMode('brain')
+    voice.speak(`Your brain, last updated ${brainUpdatedLabel}.`)
+  }
+
+  function goToListView() {
+    voice.cancel()
+    setActiveSectionId(null)
+    setMode('list')
+  }
+
+  function selectSection(def) {
+    const items = sectionItems(def, data, queue)
+    setActiveSectionId(def.id)
+    fieldRef.current?.boost?.()
+    const first = items[0]
+    voice.speak(first ? sectionItemText(def, first) : `No ${def.label.toLowerCase()} recorded yet.`)
+  }
+
+  function exitToField() {
+    setActiveSectionId(null)
+  }
+
+  const headerTitle =
+    mode === 'list'
+      ? (tab === 'overview' ? 'Overview' : 'PARA, made fun')
+      : (activeSectionDef ? activeSectionDef.label : 'Your Brain')
+
   return (
     <Layout user={user}>
       <div className="mb-8 flex flex-wrap items-end justify-between gap-4">
         <div>
           <p className="label mb-2">Mind Model</p>
-          <h1 className="font-serif text-4xl font-light text-white">{tab === 'overview' ? 'Overview' : 'PARA, made fun'}</h1>
+          <h1 className="font-serif text-4xl font-light text-white">{headerTitle}</h1>
         </div>
-        <div className="flex gap-2">
+        <div className="flex flex-wrap gap-2">
+          {mode === 'list' && (
+            <>
+              <button
+                onClick={() => setTab('overview')}
+                className={`chip capitalize ${tab === 'overview' ? 'border-emerald-400/50 text-emerald-300' : ''}`}
+              >
+                Overview
+              </button>
+              <button
+                onClick={() => setTab('parafun')}
+                className={`chip capitalize ${tab === 'parafun' ? 'border-emerald-400/50 text-emerald-300' : ''}`}
+              >
+                PARA, made fun{queue.length > 0 ? ` (${queue.length})` : ''}
+              </button>
+            </>
+          )}
           <button
-            onClick={() => setTab('overview')}
-            className={`chip capitalize ${tab === 'overview' ? 'border-emerald-400/50 text-emerald-300' : ''}`}
+            onClick={mode === 'brain' ? goToListView : enterBrain}
+            className="chip border-emerald-400/50 text-emerald-300"
           >
-            Overview
-          </button>
-          <button
-            onClick={() => setTab('parafun')}
-            className={`chip capitalize ${tab === 'parafun' ? 'border-emerald-400/50 text-emerald-300' : ''}`}
-          >
-            PARA, made fun{queue.length > 0 ? ` (${queue.length})` : ''}
+            {mode === 'brain' ? 'List view' : 'Visit Your Brain'}
           </button>
         </div>
       </div>
 
-      {tab === 'overview' ? (
-        <OverviewTab data={data} loading={loading} running={running} runNow={runNow} />
+      {mode === 'list' ? (
+        tab === 'overview' ? (
+          <OverviewTab data={data} loading={loading} running={running} runNow={runNow} />
+        ) : (
+          <ParaFunTab queue={queue} loading={queueLoading} onAnswer={answerQueue} submitting={submitting} />
+        )
+      ) : loading || queueLoading ? (
+        <div className="flex min-h-[400px] items-center justify-center rounded-2xl border border-ink-700 bg-ink-950">
+          <p className="text-mist-400">Arriving…</p>
+        </div>
+      ) : activeSectionDef ? (
+        <BrainSection
+          key={activeSectionDef.id}
+          def={activeSectionDef}
+          items={activeSectionItemsList}
+          onAnswer={answerQueue}
+          onExit={exitToField}
+          speak={voice.speak}
+          cancel={voice.cancel}
+          speaking={voice.speaking}
+          muted={voice.muted}
+          toggleMute={voice.toggleMute}
+          submitting={submitting}
+        />
       ) : (
-        <ParaFunTab queue={queue} loading={queueLoading} onAnswer={answerQueue} submitting={submitting} />
+        <BrainField
+          data={data}
+          queue={queue}
+          lastUpdatedLabel={brainUpdatedLabel}
+          onSelectSection={selectSection}
+          fieldRef={fieldRef}
+        />
       )}
     </Layout>
   )

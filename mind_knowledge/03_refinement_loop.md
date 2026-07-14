@@ -36,6 +36,16 @@ brief is its entire memory of how to do this job. Treat it as a RAG store: retri
 Before writing, check the other kinds' drafts for overlap and cut the duplicate from the lower-priority
 section (overview wins stats, user_model wins patterns, recommendation wins resources).
 
+## Brain sections — every cycle re-emits the section set (MIND_MODEL_BRIEF §4f)
+
+The "Visit Your Brain" field renders `mind_sections`, not a fixed taxonomy. Each cycle ends by writing
+the full section set for this cycle (superseding the prior set): which sections exist, titles, order,
+renderer, and metadata. Ground every section in real data — activity_log events, current insights,
+detected interests (researched feeds with URLs), permission questions, reminders. Include a section
+only when the data supports it; an interest feed with nothing real behind it is worse than its absence.
+Answered permission questions from the prior cycle are grants: act on them this cycle. Role separation
+above applies across sections too.
+
 ## Rules
 
 - The "figure out what to figure out" step is already figured out — it's 00_meta_map. Don't ask the

@@ -296,6 +296,117 @@ On the dashboard, answering a question calls a route that performs the real writ
 notes/tasks/para update logic) and marks the row answered in the same request, then advances to the next
 pending item in priority order.
 
+## 4e. "Voice Flow" — third tab on `/mind`, same queue, immersive presentation
+
+A third tab alongside Overview and "PARA, made fun" (§4d) — no new backend at all. It reads the exact same
+`para_fun_queue` via the existing `GET /api/mind/queue`, and answers through the exact same
+`POST /api/mind/queue/[id]/answer` — this is purely a different frontend over data that already works.
+
+**Layout.** One item at a time, full-width focused section. Center: an animated wave visualizer with the
+current question's text overlaid as a caption in the middle of it. Bottom: the same answer buttons +
+custom-text-input mechanic already built for `ParaFunCard` in §4d — reuse that logic, restyle the
+container.
+
+**The visualizer — corrected spec, be precise about this, it's the centerpiece:** not a radial burst of
+dots/particles. A wave visualizer that reads as something surfacing from somewhere deep, not a flat
+decoration. Concretely: 3-5 translucent horizontal wave lines, layered, each undulating at a slightly
+different phase and speed, opacity and blur increasing toward the back layers so the rear waves recede into
+the dark background — depth via layering, not a literal 3D effect. A soft glowing point at the center is
+where the waves seem to originate, pulsing gently, like light emerging from underneath rather than sitting
+on top of the section. This should look genuinely captivating — smooth, luminous, unhurried motion, not
+jittery or busy.
+
+- **Idle state** (waiting for the user's tap, including during the "paused" moment after a readout finishes):
+  slow, gentle breathing amplitude — still visibly alive, never fully static, since this is what's on screen
+  while the user is deciding.
+- **Speaking state** (see below): amplitude and speed increase — more energetic, but still smooth, never
+  chaotic.
+- **Color**: driven by the current item's PARA bucket via the existing `lib/paraTheme.js` accent colors
+  (rose/emerald/violet/gold/mist) — same palette the rest of the app already uses, with a glow/blur filter
+  for luminosity, so the whole section's color shifts as the user moves between items. `new_capture_proposal`
+  questions (no existing note) default to the inbox accent.
+
+**Voice.** Browser-native Web Speech API (`speechSynthesis`) reads `question_text` aloud when an item
+becomes current — no API key, no server cost, works offline. Honest technical note: true audio-reactive
+visualization (the wave literally driven by voice amplitude) isn't practically available from synthesized
+speech output in browsers; drive the "speaking" amplitude state from the utterance's start/end (and
+`onboundary` if useful for finer timing) rather than claiming real waveform analysis.
+
+**Pause where input.** Buttons and the text field stay de-emphasized until the readout finishes; once it
+ends, the visualizer drops to its idle-but-alive state and the answer controls become the focus. Include a
+mute/skip control — forcing a full readout on every item would get tedious once the user is moving quickly
+through the queue.
+
+**Reuse, don't reimplement.** Same `item` shape as `ParaFunCard`, same `onAnswer` handler, same
+assumed-answer-highlighted-as-default and custom-text-fallback behavior from §4d — only the container,
+visualizer, and voice layer are new.
+
+## 4f. "Visit Your Brain" — the real shape of this, superseding a flat third tab
+
+Correction from the user, and it changes the frame: this isn't a tab with a wave animation on it. It's meant
+to feel like a *visit* — walking into a visualized, Matrix-styled space that represents "your brain, as of
+its last update," made of a particle/data field (the green-and-gold dot-field, deep-perspective aesthetic
+from the reference images), with distinct sections the user selects to enter, rather than one linear queue.
+Surreal, futuristic, a destination — not a dashboard. §4e's wave visualizer isn't wasted work — it's now the
+component used *inside* a section once you're in it, not the whole experience.
+
+**Structure:**
+
+1. **Entry.** A full-bleed particle field, dark background, green/gold data-motes per the reference images,
+   framed as "your brain, last updated [timestamp of the most recent mind_insights/para_fun_queue row]."
+   This is the front door — it should read as arriving somewhere, not loading a page.
+2. **Sections — CORRECTED: dynamic, cycle-written, not the app's taxonomy.** The user rejected the
+   first version of this list (nodes mirroring insight kinds and queue types — i.e. the app's own tabs
+   restated as nodes). The brain field is not a navigation layer over the schema; its nodes are
+   **sections the refresh cycle itself writes, grounded in the user's real data, different every cycle**.
+   The cycle decides which sections exist, their titles, order, and content. Examples of what a cycle
+   might emit (illustrative, not a fixed list):
+   - **Overview** — the narrative of the period (existing `overview` kind)
+   - **Recent activity** — real `activity_log` events, humanized ("you captured 4 notes about X on Friday")
+   - **What you might do next** — the researched `recommendation` rows
+   - **Interest feeds** — if the data shows an interest (say, football), a researched digest of current
+     football news/links written during the cycle, per 02_resource_research_method.md
+   - **Questions / permissions** — asks like "want me to research X deeper next cycle?"; answering writes
+     the grant back (via the existing queue-answer mechanic) and the next cycle acts on it
+   - **Reminders** — surfaced from open loops / dormant items when timing warrants
+   Mechanism: a new `mind_sections` registry table (`id, user_id, slug, title, accent, renderer, position,
+   metadata, created_at, superseded_by/at`) written each cycle like any other kind (supersede prior set,
+   never delete). `renderer` names one of a small set of client renderers (`insight_list`, `queue`,
+   `activity_digest`, `feed`, `question`, `reminder`); `metadata` carries what that renderer needs (insight
+   kind, queue filter, feed items with URLs). The app renders whatever the current set is — if the table is
+   empty (no cycle run yet), fall back to a minimal static set so the page never breaks. Role separation
+   (03_refinement_loop.md) applies across sections: one job each, no restating.
+   Selecting a section transitions into it (a convergence/push-in motion reads well here) and surfaces that
+   section's content — read-only sections get a calm presentation (visualizer + voice readout, no answer
+   needed); actionable ones (queue/question renderers) use the exact §4d/§4e mechanic (wave visualizer,
+   voice readout, buttons + custom text, PARA-accent color).
+3. **Written command, clarified.** This reuses the custom-text-input path already built in §4d/§4e (type
+   instead of tapping a button) — plus simple universal commands recognized within any section: "next,"
+   "skip," "back to brain" and similar. This is not open-ended AI chat inside the app — there's still no
+   `ANTHROPIC_API_KEY` and no live model call in the app's own code (§4a's rule holds). If free-form
+   conversational input ever becomes the goal, that's a materially bigger decision (an API key, or routing
+   through Claude Code some other way) and should be raised explicitly, not assumed here.
+
+**Voice bug — fix before building further.** "I hear no sound" is almost certainly one of two well-known
+`speechSynthesis` gotchas, not a deeper problem: (1) most browsers silently block speech synthesis unless
+the very first `speak()` call happens synchronously inside a real user click/tap handler — triggering it
+from a `useEffect` on mount will produce nothing. The entry into "Visit Your Brain" (a deliberate "begin"
+tap) is actually a good natural place to satisfy this. (2) `speechSynthesis.getVoices()` can return an empty
+list on first call in some browsers — wait for `speechSynthesis.onvoiceschanged` before relying on a voice,
+or don't specify one and let the browser default. Also guard all of this behind
+`typeof window !== 'undefined'` since Next.js renders server-side first.
+
+**Rendering technology — flag this as a real decision, not a detail.** A field this dense and layered is
+Canvas or WebGL territory, not DOM/CSS. Recommend starting with 2D Canvas (lighter, no new heavy dependency,
+and the reference images are themselves essentially 2D/2.5D particle fields — this gets close without the
+complexity jump) rather than reaching for three.js/WebGL immediately. Revisit WebGL later only if 2D Canvas
+genuinely can't deliver the depth/motion wanted.
+
+**Keep an escape hatch.** Per §1's existing ADHD-accommodation rule, don't make the immersive experience the
+*only* way to check something quick — keep the flat Overview/PARA-fun list view (§4d) available as a plain
+fallback (a small "list view" toggle), so a 10-second check doesn't require a full flythrough every time.
+The surreal version is for when the user wants it, not a mandatory gate in front of the data.
+
 ## 5. Push notifications — DEFERRED for now
 
 Not being built yet. This was originally a real Web Push system (service worker + VAPID keys +
