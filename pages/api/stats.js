@@ -11,7 +11,7 @@ async function handler(req, res) {
   const userId = req.user.id
 
   try {
-    const [paraCounts, distilledCount, packetCount, taskCounts, openTasks, linkCount, recent, tagRows] = await Promise.all([
+    const [paraCounts, distilledCount, packetCount, taskCounts, openTasks, linkCount, recent, tagRows, capturesByDay] = await Promise.all([
       pool.query('SELECT para, count(*)::int AS count FROM notes WHERE user_id=$1 GROUP BY para', [userId]),
       pool.query('SELECT count(*)::int AS count FROM notes WHERE user_id=$1 AND distilled=true', [userId]),
       pool.query('SELECT count(*)::int AS count FROM packets WHERE user_id=$1', [userId]),
@@ -28,7 +28,14 @@ async function handler(req, res) {
         [userId]
       ),
       pool.query('SELECT id, title, para, created_at FROM notes WHERE user_id=$1 ORDER BY created_at DESC LIMIT 6', [userId]),
-      pool.query('SELECT tags FROM notes WHERE user_id=$1', [userId])
+      pool.query('SELECT tags FROM notes WHERE user_id=$1', [userId]),
+      // §4j attention-over-time: notes captured per day over the last 21 days, oldest first
+      pool.query(
+        `SELECT to_char(date_trunc('day', created_at), 'YYYY-MM-DD') AS day, count(*)::int AS count
+         FROM notes WHERE user_id=$1 AND created_at > now() - interval '21 days'
+         GROUP BY 1 ORDER BY 1`,
+        [userId]
+      )
     ])
 
     const paraMap = { inbox: 0, project: 0, area: 0, resource: 0, archive: 0 }
@@ -55,7 +62,8 @@ async function handler(req, res) {
       openTasks: openTasks.rows,
       links: linkCount.rows[0].count,
       recent: recent.rows,
-      topTags
+      topTags,
+      capturesByDay: capturesByDay.rows
     })
   } catch (err) {
     console.error(err)

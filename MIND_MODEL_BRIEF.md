@@ -407,6 +407,169 @@ genuinely can't deliver the depth/motion wanted.
 fallback (a small "list view" toggle), so a 10-second check doesn't require a full flythrough every time.
 The surreal version is for when the user wants it, not a mandatory gate in front of the data.
 
+## 4f addendum. Visit Your Brain — briefing content quality (the part that keeps it from feeling like §4d)
+
+Claude Code's `mind_sections` registry (migration 009, `renderer` contract) is the right infrastructure —
+this section doesn't change that schema, it's guidance for what gets *written into* it each cycle, because
+the schema alone doesn't guarantee the content reads like a briefing instead of a form. Explicit correction
+from the user: **"Visit Your Brain" and "PARA Made Fun" (§4d) are not the same experience.** §4d stays
+exactly what it is — a fast, mechanical way to clear the backlog, one atomic fact at a time, and that's
+correct for what it's for. A `queue` section inside the brain field (per the fallback set already built) is
+just a doorway to that same tool for someone who wants to go grind through it — it does not define what
+`feed`/`reminder`/`question` sections should sound like. Those need to read like an assistant who already
+read everything, briefing you, not like PARA-fun wearing a different skin.
+
+**Group by real understanding, not by table.** If several notes share no tag and no `note_links` row but
+are all actually about the same thing (the brief's running example: five unconnected project notes that are
+all really about Satoshi), a `feed`/`reminder` item should say so as one grouped item with `source_refs`
+pointing at all five — this is content-authoring judgment during the refresh cycle, not a new join or a new
+grouping table. `para_fun_queue.source_refs` and `mind_sections`/`metadata.items[].source_refs` already
+support multi-note references; the correction is about what Claude Code chooses to write into them, not the
+schema.
+
+**Report specifics, ask real questions, then follow through.** Bad: "You have an open loop." Good: "Mr. X
+got back and said he could do it in five days — want me to log that as done and clear the loop?" — plain
+language, and the yes/no maps to a real write through the existing airlocked answer route (§4d), the same
+`create_task`/`distill`/`set_para`/`create_capture` actions already built, or a new `link_notes` action
+(writes `note_links` rows) for the grouping-confirmation case specifically — that's the one small addition
+worth adding to `pages/api/mind/queue/[id]/answer.js`'s action set, everything else already exists.
+
+**Know when one line isn't enough.** For a genuinely bigger topic (the five Satoshi notes), the item should
+say so directly — "this one's more involved, want me to walk you through the notes?" — rather than forcing
+a false one-liner. On confirm, surface the actual note content (title + content/executive_summary, fetched
+via the existing note read path, e.g. `/api/notes/[id]`), attributed per note as it's shown — "reading" the
+real source, not an AI paraphrase standing in for it. This is a presentation/expansion behavior for the
+`feed`/`reminder` renderers, not new backend: the section item names which notes to expand into
+(`source_refs`), the frontend fetches and displays them on request.
+
+**Notice openings, not just backlog — with an honest limit.** A `reminder`/`feed` item can pair "nothing
+pressing right now" (low open-loop/task load) with something from `user_model`'s sense of what the user
+actually enjoys — the tennis-style suggestion. Be explicit in the cycle prompt that this is an approximation:
+the app has no calendar/time-of-day concept (`tasks.due_date` is a date, not a time block), so "you're free
+at 4" specifically can't be computed yet — the pattern (notice slack, suggest something aligned with
+`user_model`) is buildable now; a literal time-of-day claim is not, without adding calendar data the app
+doesn't have.
+
+**Add this to the refresh-loop prompt (§6 / `REFRESH_PROMPT`) as an explicit instruction**, not left
+implicit: when writing `mind_sections` content and any `para_fun_queue` rows that back a `question`
+section, write them as a briefing — grouped by real topic understanding, specific, natural language, each
+actionable item ending in a real question with a real consequence — and flag (rather than force into one
+line) anything too complex to compress, offering the actual notes instead.
+
+**Hard cap: 700 words total, across everything Visit Your Brain would narrate/display in one visit.** This
+is what actually forces the "know when one line isn't enough" behavior above to work in practice, not just
+in theory — without a ceiling, a briefing quietly grows back into the wall-of-text problem it was meant to
+fix. Budget it, don't just aim for brevity: Claude Code should count words across all current sections'
+`line`/`summary` content during the cycle and trim/consolidate before writing, not after the fact.
+
+**Voice option, noted:** ElevenLabs has a free tier text-to-speech API — a real upgrade over the browser's
+native `speechSynthesis` (which is serviceable but robotic). Worth it later, not required now: it's a new
+external dependency (an API key, a network call per utterance, and free-tier character limits worth checking
+before relying on it for daily use) versus the current zero-setup, works-offline browser voice. Swap-in, not
+a blocker — the `useBrainVoice` interface already built shouldn't need to change shape for this, just its
+`speak()` implementation.
+
+## 4g. Sectioned user_model — patterns, triggers, progress, cycles
+
+`user_model` currently renders as one flat category — reads like an unstructured pile. Split it into four
+sections via one new additive column, `mind_insights.section` (nullable, populated for `user_model` rows):
+`patterns` (recurring themes, safe version of "core themes"), `triggers` (what reliably causes overwhelm or
+task-avoidance — a practical/behavioral read, never a clinical one), `progress` (is follow-through actually
+improving over time, safe version of "baseline comparison"), `cycles` (thought → stall → avoidance loops).
+
+**Explicitly not modeled, and this is a hard line, not a v1-vs-later scope call:** diagnosis (DSM-5 or
+otherwise), defense mechanisms, transference, and — especially — safety/risk-of-self-harm tracking. Those
+are clinical assessment functions requiring licensed judgment and a consent/oversight structure this app
+does not have; an automated, unverified pipeline attempting them is a real harm risk in both directions
+(false negative on real risk, false positive causing needless alarm). If a wellbeing signal is ever wanted,
+the only acceptable version is narrow and non-diagnostic — e.g. noticing a sharp drop in activity and
+gently asking if the user is okay — never a risk score.
+
+New `mind_knowledge` topic row: `adhd_support_map` — defines what counts as real evidence for each of the
+four sections, so "patterns" doesn't become vague pop-psychology guessing. The product niche is now
+explicit: this is a second brain built for ADHD users specifically, not a generic PKM tool — let that shape
+language and priority throughout, not just this section.
+
+## 4h. Embeddings + similarity search — the real classification layer
+
+Deferred back at §4 ("embeddings/pgvector can come later") — build it now. This is the actual standard
+technique for learning from open-ended, unclassified text (not a trained neural network — see prose
+discussion; a per-user gradient-trained model needs far more data than one person generates and doesn't
+scale per-account). Add `pgvector`, embed every note's content on write/edit, and use cosine similarity for:
+real semantic clustering to replace/augment tag-based `interest_cluster`, surfacing related notes that
+share no tag or `note_links` row (the grouping behavior §4g/4f already need), and grounding `user_model`
+pattern-detection in actual nearest-neighbor evidence instead of keyword overlap. Inherently per-user
+already — every query scoped by `user_id`, same as everything else in this schema.
+
+## 4i. Interactive rendering — mind maps, not paragraphs
+
+Every section currently renders as static text — the user's read is correct, it looks like a wall of words.
+Two fixes: (1) `recommendation`/"what to try" becomes an interactive mind map, not a paragraph — this is
+what `mind_knowledge`'s `01_learning_path_method.md` `path` JSON format was already designed for, it just
+needs an actual client renderer (expandable/collapsible nodes, click to see source_refs) instead of being
+dumped as prose. (2) recommendation cards more generally should render as small visual cards, not just
+text — icons, a simple chart where the content genuinely supports one (e.g. a protein-content comparison
+across foods mentioned in a note), plus a short personalized suggestion line drawing on the relevant
+`user_model` section. Any numeric claim in a chart (nutrition figures, etc.) must cite a real source the
+same way `recommendation` already requires — never fabricated numbers dressed up as a chart.
+
+## 4j. "Latest in your world" — a real news feed, not a static list
+
+New `mind_sections` entry using the existing `feed` renderer (§4f/§4g's `mind_sections` registry, no new
+schema). Content requirements, explicit: sourced from real web research during the cycle (same posture as
+`recommendation` — actual current articles from reputable sources for that domain, e.g. real physics-news
+outlets for a physics interest, real dev-community sources for a programming interest), capped at 6 items
+maximum, filtered to what's genuinely currently notable in that domain (not evergreen filler), and filtered
+again against `user_model` so what's shown actually resonates with this specific person rather than just
+matching a topic keyword. Rendered as a scrolling ticker in the UI, not a flat list.
+
+## 4k. Cycle health and token spend
+
+New table, additive: `mind_cycle_runs` — `id`, `user_id`, `started_at`, `completed_at`, `tokens_used`
+(Claude Code's own self-reported estimate for that cycle), `sections_written`, `insights_written`, `status`
+(`ok`|`partial`|`error`), `notes` (free text, e.g. what failed). A small dashboard section surfaces this
+honestly — including a partial/failed cycle, not just successes — so the user can tell whether the last
+refresh actually did what it claimed.
+
+## 4l. Explicit user scoping — required, not implicit
+
+Add to the refresh prompt (§6 / `REFRESH_PROMPT` in `pages/mind.js`), and make it non-optional: state the
+target account's `user_id` or email explicitly at the top of every refresh instruction, and every query
+Claude Code runs that cycle must be scoped to it. The app already knows the logged-in user's id/email at the
+point it renders the copyable prompt — auto-fill it there rather than leaving it to the user to type. This
+isn't about opening the door to multi-user support (§1's single-account constraint still holds) — it's that
+Claude Code's Supabase MCP access has no session-based boundary the way the app's own API routes do
+(`req.user.id` from the cookie); without an explicit anchor, the scope is only implicit, which is worse
+practice regardless of how many rows are currently in `users`.
+
+## 4m. Visit Your Brain — onboarding & evolving journey (planned, not urgent)
+
+Noted for later, not part of the current build queue. Known gap in what's live today: the narration currently
+reads as a script sitting above a wave panel, like a quiz — §4g's content-quality rules are the specified
+fix, just not yet applied to the built UI. Don't treat this as new work; it's a reminder the existing
+guidance hasn't landed yet.
+
+The fuller journey, for whenever this gets picked up:
+
+1. **Entry — redesigned, simpler.** Dropped the literal dormant-server/sequential-lights idea. Redesign
+   reference: how Gemini looks on Android — an abstract, wavy, glowy shape that moves on start, no narrative
+   framing around it. This is closer to what's already built than the original server concept was — it's
+   `WaveVisualizer` (§4e) elevated to the primary visual identity of the entry itself, not new asset work.
+2. **Brain space.** Transitions from that abstract motion into the actual brain space. Visual anchor: the
+   glowing central network/tree structure from the reference dashboard image — richer than the current
+   wave-only treatment, extends §4f's particle field rather than replacing it.
+3. **First visit — onboarding, not data.** Brain regions aren't data sections yet. Clicking one prompts a
+   single field: name, age, what the user mostly does. Answering unlocks an optional deeper region: paste
+   up to three long AI-chat transcripts from elsewhere. This must POST directly to a backend route and be
+   processed/stored server-side — never held as a large string in client-side React state, the same
+   principle as a large file upload streaming server-side instead of bloating browser memory. What's learned
+   from those transcripts can unlock further tailored onboarding questions.
+4. **Every visit after.** The brain looks different — regions now represent real categorized content (§4g's
+   sections, §4h's embedding-based clusters), not onboarding prompts.
+5. **Interaction, unchanged from what's already built.** Click a region → voice narrates → current line
+   shown as text in the middle → pauses exactly where an answer is needed. Same mechanic as §4e/§4f, applied
+   to real content instead of onboarding once step 4 is reached.
+
 ## 5. Push notifications — DEFERRED for now
 
 Not being built yet. This was originally a real Web Push system (service worker + VAPID keys +

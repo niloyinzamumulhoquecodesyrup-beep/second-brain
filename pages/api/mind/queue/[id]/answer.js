@@ -62,6 +62,29 @@ async function handler(req, res) {
       )
       await syncNoteLinks(pool, userId, rows[0].id, rows[0].content)
       await logActivity(pool, userId, 'note_created', rows[0].id, { title: rows[0].title, para: rows[0].para, via: 'para_fun' })
+    } else if (action === 'link_notes') {
+      // §4f-addendum grouping-confirmation: the user confirms that a set of notes are
+      // really about the same thing (e.g. the five unconnected Satoshi notes), so we
+      // write note_links between them. note_links has no user_id column, so ownership is
+      // the guard: every id must belong to this user or we reject the whole request.
+      const ids = Array.isArray(value?.note_ids) ? [...new Set(value.note_ids.filter(Boolean))] : []
+      if (ids.length < 2) return res.status(400).json({ error: 'link_notes needs at least 2 note_ids' })
+      const owned = await pool.query('SELECT id FROM notes WHERE user_id=$1 AND id = ANY($2::uuid[])', [userId, ids])
+      if (owned.rows.length !== ids.length) return res.status(404).json({ error: 'one or more notes not found' })
+      // Star topology from the first note, bidirectional, so every note in the group is
+      // reachable from every other via the hub without inserting a full N^2 clique.
+      const [hub, ...rest] = ids
+      const pairs = []
+      const params = []
+      for (const other of rest) {
+        params.push(hub, other); pairs.push(`($${params.length - 1},$${params.length})`)
+        params.push(other, hub); pairs.push(`($${params.length - 1},$${params.length})`)
+      }
+      await pool.query(
+        `INSERT INTO note_links (from_note_id, to_note_id) VALUES ${pairs.join(',')} ON CONFLICT DO NOTHING`,
+        params
+      )
+      await logActivity(pool, userId, 'notes_linked', hub, { note_ids: ids, via: 'para_fun' })
     } else {
       return res.status(400).json({ error: 'unknown action' })
     }

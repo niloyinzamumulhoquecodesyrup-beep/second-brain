@@ -10,7 +10,7 @@ async function handler(req, res) {
   const pool = getPool()
 
   const { rows } = await pool.query(
-    `SELECT id, kind, summary, source_refs, created_at
+    `SELECT id, kind, summary, source_refs, section, metadata, created_at
      FROM mind_insights
      WHERE user_id = $1 AND superseded_by IS NULL
      ORDER BY created_at DESC`,
