@@ -224,7 +224,7 @@ function buildRefreshPrompt(user) {
 
   return `${anchor}
 
-Refresh my Mind Model following the refinement loop (mind_knowledge topic "refinement_loop"): read all mind_knowledge rows first — including "adhd_support_map" — then my notes, tasks, packets, activity_log, and current mind_insights via the Supabase MCP. Re-run POST /api/mind/synthesize to refresh the four templated kinds (interest_cluster, open_loop, attention_pattern, dormant_revival). Then write a fresh "overview" in your own words (mirror, not oracle — describe, don't direct), and update "user_model"/"recommendation" per the meta_map/learning_path_method/resource_research_method/adhd_support_map docs at whatever tier the data supports. Every user_model row must set section to exactly one of patterns | triggers | progress | cycles (per adhd_support_map — never diagnosis, defense mechanisms, transference, or risk/self-harm scoring). Write scope='user' calibration rows back to mind_knowledge. Insert everything via the Supabase MCP, superseding prior rows of each kind.
+Refresh my Mind Model following the refinement loop (mind_knowledge topic "refinement_loop"): read all mind_knowledge rows first — including "adhd_support_map" — then my notes, tasks, packets, activity_log, and current mind_insights via the Supabase MCP. Re-run POST /api/mind/synthesize to refresh the four templated kinds (interest_cluster, open_loop, attention_pattern, dormant_revival). Then write a fresh "overview" in your own words (mirror, not oracle — describe, don't direct), and update "user_model"/"recommendation" per the meta_map/learning_path_method/resource_research_method/adhd_support_map docs at whatever tier the data supports. Every user_model row must set section to exactly one of patterns | triggers | progress | cycles (per adhd_support_map — never diagnosis, defense mechanisms, transference, or risk/self-harm scoring). "inferred_goal" is one row PER distinct goal, never a single paragraph bundling several goals together — if the notes point at multiple separate things the user seems to be working toward, write one row for each. Every inferred_goal row's metadata must include a short name (e.g. metadata: {"name": "Neurobiology"}) — the dashboard renders it as a labeled banner, not a wall of prose, so a real short name beats a truncated first sentence every time. A goal that's gone quiet still counts as a goal and gets its own inferred_goal row even if a dormant_revival row already exists for the same notes — the two kinds answer different questions ("what are you working toward" vs. "what went quiet") and both can be true for the same thing at once. Write scope='user' calibration rows back to mind_knowledge. Insert everything via the Supabase MCP, superseding prior rows of each kind.
 
 Then process the PARA-fun queue (para_fun_queue): first read all existing rows for this account. Leave still-valid pending rows untouched — do not duplicate or re-ask a question that's already waiting for an answer. Mark a row superseded if the note/data it was about has changed enough to invalidate it. Only after that, add new questions — including proposing a new capture if your processing surfaced something genuinely worth capturing. Build questions from the current open_loop/dormant_revival insights plus Inbox age, not new logic.
 
@@ -328,42 +328,168 @@ function KindCard({ kind, insights, accentClass }) {
   )
 }
 
-// §4g: user_model is split into four sub-sections via the additive mind_insights.section
-// column (patterns/triggers/progress/cycles per mind_knowledge's adhd_support_map). Rows
-// with no/unknown section fall under "Other" so nothing Claude Code wrote is dropped.
-const USER_MODEL_SECTIONS = [
-  { key: 'patterns', label: 'Patterns', hint: 'recurring themes' },
-  { key: 'triggers', label: 'Triggers', hint: 'what precedes a stall' },
-  { key: 'progress', label: 'Progress', hint: 'follow-through over time' },
-  { key: 'cycles', label: 'Cycles', hint: 'thought → stall → avoidance loops' }
-]
+// Short single-line banner title (no summary text shown until clicked) — first
+// sentence of the insight, cut at a word boundary if still too long for the ribbon.
+function shortGoalTitle(summary) {
+  if (!summary) return 'Inferred goal'
+  const firstSentence = (summary.split(/(?<=[.!?])\s/)[0] || summary).replace(/[.!?]+$/, '')
+  const MAX = 32
+  if (firstSentence.length <= MAX) return firstSentence
+  const cut = firstSentence.slice(0, MAX)
+  const lastSpace = cut.lastIndexOf(' ')
+  return (lastSpace > 16 ? cut.slice(0, lastSpace) : cut) + '…'
+}
 
-function UserModelCard({ insights }) {
-  if (!insights || insights.length === 0) return null
-  const known = USER_MODEL_SECTIONS.map(s => s.key)
-  const bySection = {}
-  for (const ins of insights) {
-    const key = known.includes(ins.section) ? ins.section : 'other'
-    ;(bySection[key] ||= []).push(ins)
-  }
-  const groups = [...USER_MODEL_SECTIONS, { key: 'other', label: 'Other', hint: '' }]
-    .filter(g => bySection[g.key]?.length)
+// Fixed coordinate space (scaled responsively via the SVG viewBox) for the goal
+// arrow/target diagram below — geometry lives here once so every shape agrees.
+const GOAL_VW = 1000
+const GOAL_ROW_H = 112
+const GOAL_BW = 320
+const GOAL_BH = 60
+const GOAL_TAB_W = 56
+const GOAL_GAP = 70
+const GOAL_TOP_PAD = 40
+const GOAL_HEAD_W = 34
+const GOAL_HEAD_H = 26
+const GOAL_SHAFT_W = 34
+const GOAL_NOTCH = 14
+const GOAL_TARGET_R = 48
+const GOAL_SPINE_X = GOAL_VW / 2
+
+// One ribbon-flag banner: a rectangle plus a triangular-notched number tab on its outer
+// edge (mirrored left/right) — the literal shape from the reference infographic, redrawn
+// in the app's violet accent. Title only; no summary text renders here at all.
+function GoalRibbon({ goal, num, side, rowCenterY, active, onClick }) {
+  const rectY = rowCenterY - GOAL_BH / 2
+  const innerX = side === 'left' ? GOAL_SPINE_X - GOAL_GAP : GOAL_SPINE_X + GOAL_GAP
+  const rectX = side === 'left' ? innerX - GOAL_BW : innerX
+  const tabInnerX = side === 'left' ? rectX : rectX + GOAL_BW
+  const tabOuterX = side === 'left' ? rectX - GOAL_TAB_W : rectX + GOAL_BW + GOAL_TAB_W
+  const notchX = side === 'left' ? tabOuterX + 14 : tabOuterX - 14
+  const tabPoints = `${tabInnerX},${rectY} ${notchX},${rectY} ${tabOuterX},${rowCenterY} ${notchX},${rectY + GOAL_BH} ${tabInnerX},${rectY + GOAL_BH}`
+  const titleX = side === 'left' ? rectX + 16 : rectX + GOAL_BW - 16
+  const tabTextX = (tabInnerX + tabOuterX) / 2
+  // Prefer an explicit short name a cycle assigned (metadata.name, e.g. "Neurobiology")
+  // over an algorithmically-derived first sentence — a real name reads far better than
+  // a truncated "Based on your Project and Area notes..." fragment.
+  const title = goal.metadata?.name || shortGoalTitle(goal.summary)
+
   return (
-    <div className="card border-t-2 border-violet-400/30 p-6">
-      <p className="label mb-4 !text-violet-300">How you seem to work</p>
-      <div className="space-y-6">
-        {groups.map(g => (
-          <div key={g.key}>
-            <p className="mb-1 text-xs font-medium uppercase tracking-wide text-violet-200/80">
-              {g.label}
-              {g.hint ? <span className="ml-2 font-normal normal-case tracking-normal text-mist-500">{g.hint}</span> : null}
-            </p>
-            <div className="divide-y divide-ink-700">
-              {bySection[g.key].map(i => <InsightRow key={i.id} insight={i} />)}
-            </div>
-          </div>
-        ))}
+    <g onClick={onClick} className="cursor-pointer">
+      <rect
+        x={rectX} y={rectY} width={GOAL_BW} height={GOAL_BH} rx={10}
+        fill={active ? 'rgba(183,166,247,0.16)' : 'rgba(20,24,31,0.85)'}
+        stroke="#b7a6f7" strokeOpacity={active ? 0.9 : 0.35} strokeWidth={active ? 2 : 1.2}
+      />
+      <polygon points={tabPoints} fill="#b7a6f7" fillOpacity={active ? 0.95 : 0.7} />
+      <text x={tabTextX} y={rowCenterY} textAnchor="middle" dominantBaseline="central" fill="#0b0f14" style={{ fontSize: 20, fontWeight: 700 }}>
+        {num}
+      </text>
+      <text x={titleX} y={rowCenterY} textAnchor={side === 'left' ? 'start' : 'end'} dominantBaseline="central"
+        fill={active ? '#efeaff' : '#c7cbd1'} style={{ fontSize: 15, fontWeight: 500 }}>
+        {title}
+      </text>
+    </g>
+  )
+}
+
+// Inferred goals as a numbered ribbon-and-target infographic — the literal structure
+// from the reference (flag-notched number tabs, a chevron arrow shaft, connector lines
+// into a target), redrawn in the app's violet accent instead of the reference's
+// cream/red. Goals split first-half-left / second-half-right (not zigzagged), matching
+// the reference's 01-03 left / 04-06 right grouping; 1 goal renders alone on the left
+// with the shaft/target still intact. Banners show only a short title; clicking one
+// opens a detail panel below the diagram with the full summary + the same SourceRefs
+// every other insight already uses — extra info only when asked for, never inline.
+function GoalArrowChart({ goals }) {
+  const [activeId, setActiveId] = useState(null)
+  if (!goals || goals.length === 0) {
+    return (
+      <div className="card p-6">
+        <p className="label mb-2 !text-violet-300">Inferred goals</p>
+        <p className="text-sm text-mist-400">No goals inferred yet.</p>
       </div>
+    )
+  }
+  const half = Math.ceil(goals.length / 2)
+  const left = goals.slice(0, half)
+  const right = goals.slice(half)
+  const rows = left.length
+
+  const shaftBottomY = GOAL_TOP_PAD + GOAL_HEAD_H + rows * GOAL_ROW_H
+  const targetCenterY = shaftBottomY + 30 + GOAL_TARGET_R
+  const totalHeight = targetCenterY + GOAL_TARGET_R + 30
+
+  const activeGoal = goals.find(g => g.id === activeId) || null
+  const activeNum = activeGoal ? goals.indexOf(activeGoal) + 1 : null
+
+  function toggle(id) {
+    setActiveId(a => (a === id ? null : id))
+  }
+
+  return (
+    <div className="card p-6">
+      <p className="label mb-6 !text-violet-300">Inferred goals</p>
+      <svg viewBox={`0 0 ${GOAL_VW} ${totalHeight}`} className="w-full" style={{ maxHeight: 420 }}>
+        <polygon
+          points={`${GOAL_SPINE_X},${GOAL_TOP_PAD} ${GOAL_SPINE_X - GOAL_HEAD_W / 2},${GOAL_TOP_PAD + GOAL_HEAD_H} ${GOAL_SPINE_X + GOAL_HEAD_W / 2},${GOAL_TOP_PAD + GOAL_HEAD_H}`}
+          fill="#b7a6f7" fillOpacity="0.85"
+        />
+        {Array.from({ length: rows }, (_, i) => {
+          const topY = GOAL_TOP_PAD + GOAL_HEAD_H + i * GOAL_ROW_H
+          const botY = topY + GOAL_ROW_H
+          const sx0 = GOAL_SPINE_X - GOAL_SHAFT_W / 2
+          const sx1 = GOAL_SPINE_X + GOAL_SHAFT_W / 2
+          return (
+            <path key={i}
+              d={`M ${sx0},${topY} L ${sx1},${topY} L ${sx1},${botY - GOAL_NOTCH} L ${GOAL_SPINE_X},${botY} L ${sx0},${botY - GOAL_NOTCH} Z`}
+              fill="#b7a6f7" fillOpacity={i % 2 === 0 ? 0.55 : 0.4} stroke="#b7a6f7" strokeOpacity="0.3"
+            />
+          )
+        })}
+        <line x1={GOAL_SPINE_X} y1={shaftBottomY} x2={GOAL_SPINE_X} y2={targetCenterY - GOAL_TARGET_R} stroke="#b7a6f7" strokeOpacity="0.5" strokeWidth="3" />
+
+        <ellipse cx={GOAL_SPINE_X} cy={targetCenterY + 6} rx={GOAL_TARGET_R + 14} ry={(GOAL_TARGET_R + 14) * 0.32} fill="#b7a6f7" fillOpacity="0.08" />
+        <circle cx={GOAL_SPINE_X} cy={targetCenterY} r={GOAL_TARGET_R} fill="none" stroke="#b7a6f7" strokeOpacity="0.35" strokeWidth="6" />
+        <circle cx={GOAL_SPINE_X} cy={targetCenterY} r={GOAL_TARGET_R * 0.62} fill="none" stroke="#b7a6f7" strokeOpacity="0.55" strokeWidth="6" />
+        <circle cx={GOAL_SPINE_X} cy={targetCenterY} r={GOAL_TARGET_R * 0.26} fill="#b7a6f7" fillOpacity="0.85" />
+
+        {Array.from({ length: rows }, (_, i) => {
+          const rowCenterY = GOAL_TOP_PAD + GOAL_HEAD_H + i * GOAL_ROW_H + GOAL_ROW_H / 2
+          const lGoal = left[i]
+          const rGoal = right[i]
+          return (
+            <g key={i}>
+              {lGoal && (
+                <>
+                  <line x1={GOAL_SPINE_X - GOAL_GAP} y1={rowCenterY} x2={GOAL_SPINE_X - GOAL_SHAFT_W / 2} y2={rowCenterY} stroke="#b7a6f7" strokeOpacity="0.4" strokeWidth="2" />
+                  <circle cx={GOAL_SPINE_X - GOAL_GAP} cy={rowCenterY} r="4" fill="#b7a6f7" />
+                  <GoalRibbon goal={lGoal} num={String(i + 1).padStart(2, '0')} side="left" rowCenterY={rowCenterY}
+                    active={activeId === lGoal.id} onClick={() => toggle(lGoal.id)} />
+                </>
+              )}
+              {rGoal && (
+                <>
+                  <line x1={GOAL_SPINE_X + GOAL_SHAFT_W / 2} y1={rowCenterY} x2={GOAL_SPINE_X + GOAL_GAP} y2={rowCenterY} stroke="#b7a6f7" strokeOpacity="0.4" strokeWidth="2" />
+                  <circle cx={GOAL_SPINE_X + GOAL_GAP} cy={rowCenterY} r="4" fill="#b7a6f7" />
+                  <GoalRibbon goal={rGoal} num={String(half + i + 1).padStart(2, '0')} side="right" rowCenterY={rowCenterY}
+                    active={activeId === rGoal.id} onClick={() => toggle(rGoal.id)} />
+                </>
+              )}
+            </g>
+          )
+        })}
+      </svg>
+
+      {activeGoal && (
+        <div className="mt-4 rounded-xl border border-violet-400/30 bg-violet-500/5 p-4">
+          <p className="mb-2 text-xs font-semibold uppercase tracking-wide text-violet-300">
+            Goal {String(activeNum).padStart(2, '0')}{activeGoal.metadata?.name ? ` — ${activeGoal.metadata.name}` : ''}
+          </p>
+          <p className="text-sm leading-relaxed text-mist-100">{activeGoal.summary}</p>
+          <SourceRefs refs={activeGoal.source_refs} />
+        </div>
+      )}
     </div>
   )
 }
@@ -664,21 +790,40 @@ function OpenLoopBars({ loops }) {
   )
 }
 
+// day ("YYYY-MM-DD") -> compact "M/D" label, parsed as a local calendar date (not UTC)
+// so it can't drift a day depending on the browser's timezone.
+function shortDateLabel(day) {
+  const [, m, d] = day.split('-').map(Number)
+  return `${m}/${d}`
+}
+
 // "Attention patterns" — a line chart of notes captured per day (from /api/stats), with
-// the day of peak activity marked. The template attention_pattern insight rides along
-// as the caption beneath it.
+// the day of peak activity marked and real dates along the x-axis (not a generic "TIME"
+// label) so the timeline is actually readable. The template attention_pattern insight
+// rides along as the caption beneath it.
 function AttentionChart({ series, caption }) {
   const pts = (series || []).filter(d => d && typeof d.count === 'number')
   if (pts.length < 2) {
     return <p className="text-sm text-mist-400">{caption || 'Not enough activity yet to chart attention over time.'}</p>
   }
-  const W = 300, H = 150, padL = 26, padR = 12, padT = 16, padB = 22
+  const W = 300, H = 150, padL = 26, padR = 12, padT = 16, padB = 24
   const maxV = Math.max(...pts.map(p => p.count))
   const niceMax = Math.max(4, Math.ceil(maxV / 2) * 2)
   const x = i => padL + (i / (pts.length - 1)) * (W - padL - padR)
   const y = v => padT + (1 - v / niceMax) * (H - padT - padB)
   const line = pts.map((p, i) => `${x(i)},${y(p.count)}`).join(' ')
   const peakIdx = pts.reduce((m, p, i) => (p.count > pts[m].count ? i : m), 0)
+
+  // Thin the date ticks so labels never overlap: show every point up to 6, otherwise
+  // sample ~5 evenly-spaced indices (always including the first and last day).
+  const maxLabels = 6
+  const labelIdx = pts.length <= maxLabels
+    ? pts.map((_, i) => i)
+    : [...new Set([
+        ...Array.from({ length: maxLabels - 1 }, (_, i) => Math.round(i * (pts.length - 1) / (maxLabels - 2))),
+        peakIdx // always show the peak day's date, not just its count
+      ])].sort((a, b) => a - b)
+
   return (
     <div>
       <svg viewBox={`0 0 ${W} ${H}`} className="w-full">
@@ -694,7 +839,11 @@ function AttentionChart({ series, caption }) {
             fill={i === peakIdx ? '#f0d9a3' : '#5eead4'} stroke="#0b0f14" strokeWidth="1" />
         ))}
         <text x={x(peakIdx)} y={y(pts[peakIdx].count) - 8} textAnchor="middle" fill="#f0d9a3" style={{ fontSize: 8 }}>peak {pts[peakIdx].count}</text>
-        <text x={W / 2} y={H - 3} textAnchor="middle" fill="#6b7480" style={{ fontSize: 8, letterSpacing: 1.5 }}>TIME</text>
+        {labelIdx.map(i => (
+          <text key={i} x={x(i)} y={H - 4} textAnchor="middle" fill="#6b7480" style={{ fontSize: 7.5 }}>
+            {shortDateLabel(pts[i].day)}
+          </text>
+        ))}
       </svg>
       {caption && <p className="mt-2 text-xs leading-relaxed text-mist-400">{caption}</p>}
     </div>
@@ -703,7 +852,6 @@ function AttentionChart({ series, caption }) {
 
 function OverviewTab({ data, loading, running, runNow, refreshPrompt, cycle, feedItems, stats }) {
   const hasAnything = data && (data.overview || [...KIND_ORDER, 'user_model', 'recommendation'].some(k => data.byKind[k]?.length))
-  const hasUserModel = data && data.byKind.user_model?.length > 0
   const recommendations = data ? data.byKind.recommendation || [] : []
 
   return (
@@ -746,17 +894,13 @@ function OverviewTab({ data, loading, running, runNow, refreshPrompt, cycle, fee
             </div>
           </div>
 
-          <div className="mt-6 grid gap-6 md:grid-cols-2">
-            {['interest_cluster', 'dormant_revival', 'inferred_goal'].map(kind => (
-              <KindCard key={kind} kind={kind} insights={data.byKind[kind]} />
-            ))}
+          <div className="mt-6">
+            <KindCard kind="interest_cluster" insights={data.byKind.interest_cluster} />
           </div>
 
-          {hasUserModel && (
-            <div className="mt-10">
-              <UserModelCard insights={data.byKind.user_model} />
-            </div>
-          )}
+          <div className="mt-6">
+            <GoalArrowChart goals={data.byKind.inferred_goal} />
+          </div>
 
           <p className="label mb-4 mt-10 !text-gold-400">What you might do</p>
           {recommendations.length > 0 ? (
