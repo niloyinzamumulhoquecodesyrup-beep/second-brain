@@ -8,7 +8,7 @@ module.exports = {
   theme: {
     extend: {
       fontFamily: {
-        serif: ['var(--font-heading)', '"Cormorant Garamond"', 'Georgia', 'serif'],
+        serif: ['Lexend', 'Inter', 'system-ui', 'sans-serif'],
         sans: ['Inter', 'system-ui', '-apple-system', 'sans-serif']
       },
       colors: {

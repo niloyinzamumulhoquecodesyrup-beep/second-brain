@@ -1,6 +1,6 @@
 import { useRouter } from 'next/router'
 import Link from 'next/link'
-import { useState, useEffect } from 'react'
+import { useState } from 'react'
 
 const NAV_ITEMS = [
   { href: '/', label: 'Dashboard' },
@@ -15,33 +15,6 @@ const NAV_ITEMS = [
 export default function Layout({ children, user }) {
   const router = useRouter()
   const [loggingOut, setLoggingOut] = useState(false)
-  const [headingFont, setHeadingFont] = useState('sans')
-  const [calmMode, setCalmMode] = useState('on')
-
-  useEffect(() => {
-    const storedFont = localStorage.getItem('sb-heading-font') || 'sans'
-    setHeadingFont(storedFont)
-    document.documentElement.dataset.headingFont = storedFont
-
-    // Calm Mode defaults on for everyone; users opt out explicitly if they want motion.
-    const storedCalm = localStorage.getItem('sb-calm-mode') || 'on'
-    setCalmMode(storedCalm)
-    document.documentElement.dataset.calmMode = storedCalm
-  }, [])
-
-  function toggleHeadingFont() {
-    const next = headingFont === 'sans' ? 'serif' : 'sans'
-    setHeadingFont(next)
-    document.documentElement.dataset.headingFont = next
-    localStorage.setItem('sb-heading-font', next)
-  }
-
-  function toggleCalmMode() {
-    const next = calmMode === 'on' ? 'off' : 'on'
-    setCalmMode(next)
-    document.documentElement.dataset.calmMode = next
-    localStorage.setItem('sb-calm-mode', next)
-  }
 
   async function logout() {
     setLoggingOut(true)
@@ -78,27 +51,6 @@ export default function Layout({ children, user }) {
           </nav>
 
           <div className="flex items-center gap-4">
-            <button
-              onClick={toggleCalmMode}
-              title={calmMode === 'on' ? 'Calm Mode is on — turn off to allow motion & animation' : 'Calm Mode is off — turn on to stop motion & animation'}
-              aria-label="Toggle Calm Mode"
-              aria-pressed={calmMode === 'on'}
-              className={`rounded border px-2 py-1 text-[13px] transition ${
-                calmMode === 'on'
-                  ? 'border-emerald-400/50 text-emerald-300'
-                  : 'border-ink-600 text-mist-300 hover:border-mist-300/50 hover:text-mist-100'
-              }`}
-            >
-              Calm
-            </button>
-            <button
-              onClick={toggleHeadingFont}
-              title={headingFont === 'sans' ? 'Switch headings to serif' : 'Switch headings to sans-serif (more legible)'}
-              aria-label="Toggle heading font"
-              className="rounded border border-ink-600 px-2 py-1 text-[13px] text-mist-300 transition hover:border-mist-300/50 hover:text-mist-100"
-            >
-              Aa
-            </button>
             {user && <span className="hidden text-xs text-mist-400 sm:inline">{user.email}</span>}
             <button onClick={logout} disabled={loggingOut} className="btn-secondary !px-4 !py-1.5 text-xs">
               {loggingOut ? 'Signing out…' : 'Sign out'}

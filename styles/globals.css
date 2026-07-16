@@ -1,20 +1,10 @@
-@import url('https://fonts.googleapis.com/css2?family=Cormorant+Garamond:ital,wght@0,300;0,400;0,500;0,600;1,400;1,500&family=Lexend:wght@400;500;600;700&family=Inter:wght@400;500;600;700&display=swap');
+@import url('https://fonts.googleapis.com/css2?family=Lexend:wght@400;500;600;700&family=Inter:wght@400;500;600;700&display=swap');
 
 @tailwind base;
 @tailwind components;
 @tailwind utilities;
 
 @layer base {
-  :root {
-    /* Default heading font is sans-serif (Lexend) for legibility.
-       [data-heading-font="serif"] on <html> switches to the decorative serif. */
-    --font-heading: 'Lexend', 'Inter', system-ui, sans-serif;
-  }
-
-  [data-heading-font='serif'] {
-    --font-heading: 'Cormorant Garamond', Georgia, serif;
-  }
-
   html {
     background: #050607;
   }
@@ -26,12 +16,11 @@
   }
 
   h1, h2, h3, .font-serif {
-    font-family: var(--font-heading);
+    font-family: 'Lexend', 'Inter', system-ui, sans-serif;
   }
 
-  /* In sans mode, the thin serif-era weight reads too low-contrast — bump it up.
-     Serif mode keeps the original light weight since that's the decorative look it was designed for. */
-  [data-heading-font='sans'] .font-serif.font-light {
+  /* The thin serif-era weight reads too low-contrast in the sans-serif heading font — bump it up. */
+  .font-serif.font-light {
     font-weight: 500;
   }
 
@@ -124,15 +113,10 @@
   }
 }
 
-/* Calm Mode (default on) and the OS-level reduced-motion preference both kill
-   non-essential looping animation: the news ticker and any pulsing status dots.
-   ParticleField/WaveVisualizer read the same signals directly in JS and fall
-   back to a single static frame instead of a continuous rAF loop. */
-[data-calm-mode='on'] .news-strip-anim,
-[data-calm-mode='on'] .animate-pulse {
-  animation: none !important;
-}
-
+/* The OS-level reduced-motion preference kills non-essential looping animation:
+   the news ticker and any pulsing status dots. ParticleField/WaveVisualizer read
+   the same signal directly in JS and fall back to a single static frame instead
+   of a continuous rAF loop. */
 @media (prefers-reduced-motion: reduce) {
   .news-strip-anim,
   .animate-pulse {
