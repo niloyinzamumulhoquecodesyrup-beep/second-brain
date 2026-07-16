@@ -699,10 +699,12 @@ function ParaDonut({ para }) {
       </svg>
       <ul className="space-y-1.5">
         {buckets.map(b => (
-          <li key={b.key} className="flex items-center gap-2 text-xs">
-            <span className="h-2.5 w-2.5 shrink-0 rounded-full" style={{ background: b.color }} />
-            <span className="text-mist-200">{b.label}</span>
-            <span className="text-mist-500">— {b.count} note{b.count === 1 ? '' : 's'}</span>
+          <li key={b.key} className="flex items-start gap-2 text-xs">
+            <span className="mt-1 h-2.5 w-2.5 shrink-0 rounded-full" style={{ background: b.color }} />
+            <span className="text-mist-200">
+              {b.label}
+              <span className="text-mist-500 whitespace-nowrap"> — {b.count} note{b.count === 1 ? '' : 's'}</span>
+            </span>
           </li>
         ))}
       </ul>
