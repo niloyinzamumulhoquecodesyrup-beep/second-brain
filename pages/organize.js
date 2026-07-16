@@ -51,7 +51,7 @@ export default function Organize({ user }) {
   return (
     <Layout user={user}>
       <p className="label mb-2">Organize</p>
-      <h1 className="mb-2 font-serif text-4xl font-light text-white">The PARA method</h1>
+      <h1 className="mb-2 font-serif text-4xl font-light text-mist-100">The PARA method</h1>
       <p className="mb-8 max-w-2xl text-sm text-mist-400">
         Sorted by use, not subject — like a kitchen, not a library. Spend five minutes clearing the Inbox each
         week, archive what isn't immediately necessary, and keep actionable work close.
@@ -85,7 +85,7 @@ export default function Organize({ user }) {
               <div key={col.key} className={`card flex flex-col border-t-2 p-4 ${theme.border}`}>
                 <div className="mb-3">
                   <div className="flex items-center justify-between">
-                    <p className={`flex items-center gap-2 font-serif text-lg text-white`}>
+                    <p className={`flex items-center gap-2 font-serif text-lg text-mist-100`}>
                       <span className={`h-1.5 w-1.5 rounded-full ${theme.dot}`} />
                       {col.label}
                     </p>

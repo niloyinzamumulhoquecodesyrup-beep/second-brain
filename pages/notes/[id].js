@@ -12,15 +12,17 @@ export default function NoteDetail({ user }) {
   const { id } = router.query
   const [note, setNote] = useState(null)
   const [links, setLinks] = useState({ outgoing: [], incoming: [] })
+  const [related, setRelated] = useState([])
   const [editing, setEditing] = useState(false)
   const [draft, setDraft] = useState(null)
   const [saving, setSaving] = useState(false)
 
   async function load() {
     if (!id) return
-    const [noteRes, linksRes] = await Promise.all([
+    const [noteRes, linksRes, relatedRes] = await Promise.all([
       fetch(`/api/notes/${id}`),
-      fetch(`/api/notes/${id}/links`)
+      fetch(`/api/notes/${id}/links`),
+      fetch(`/api/notes/${id}/related`)
     ])
     if (noteRes.ok) {
       const data = await noteRes.json()
@@ -28,6 +30,7 @@ export default function NoteDetail({ user }) {
       setDraft({ ...data, tags: (data.tags || []).join(', ') })
     }
     if (linksRes.ok) setLinks(await linksRes.json())
+    if (relatedRes.ok) setRelated(await relatedRes.json())
   }
 
   useEffect(() => { load() }, [id])
@@ -88,7 +91,7 @@ export default function NoteDetail({ user }) {
                 {note.distilled && <span className="chip border-gold-400/40 text-gold-400">Distilled</span>}
                 {note.pinned && <span className="chip border-gold-400/40 text-gold-400">Pinned</span>}
               </div>
-              <h1 className="font-serif text-4xl font-light text-white">{note.title}</h1>
+              <h1 className="font-serif text-4xl font-light text-mist-100">{note.title}</h1>
               {note.source_url && (
                 <a href={note.source_url} target="_blank" rel="noreferrer" className="mt-1 inline-block text-xs text-emerald-400 hover:underline">
                   {note.source_url}
@@ -113,12 +116,12 @@ export default function NoteDetail({ user }) {
           {note.executive_summary && (
             <div className="card mb-6 border-t-2 border-gold-400/30 p-5">
               <p className="label mb-2 !text-gold-400">Executive summary</p>
-              <p className="whitespace-pre-wrap text-sm text-mist-200">{note.executive_summary}</p>
+              <p className="max-w-[65ch] whitespace-pre-wrap text-sm leading-relaxed text-mist-200">{note.executive_summary}</p>
             </div>
           )}
 
           <div className="card mb-6 p-6">
-            <p className="whitespace-pre-wrap text-sm leading-relaxed text-mist-300">{note.content}</p>
+            <p className="max-w-[65ch] whitespace-pre-wrap text-sm leading-relaxed text-mist-300">{note.content}</p>
           </div>
 
           <div className="grid gap-4 sm:grid-cols-2">
@@ -150,6 +153,32 @@ export default function NoteDetail({ user }) {
                 </ul>
               )}
             </div>
+          </div>
+
+          {/* §4h: notes that are topically close by embedding similarity but share no tag
+              or explicit [[link]] with this one — a different signal from the two cards above. */}
+          <div className="card mt-4 p-5">
+            <p className="label mb-3">Related notes</p>
+            {related.length === 0 ? (
+              <p className="text-xs text-mist-500">No related notes yet.</p>
+            ) : (
+              <ul className="space-y-2.5">
+                {related.map(r => {
+                  const pct = Math.round(r.similarity * 100)
+                  return (
+                    <li key={r.id} className="flex items-center gap-3">
+                      <Link href={`/notes/${r.id}`} className="min-w-0 flex-1 truncate text-sm text-mist-200 hover:text-emerald-300">
+                        {r.title}
+                      </Link>
+                      <span className="h-1.5 w-16 shrink-0 overflow-hidden rounded-full bg-ink-800" title={`${pct}% similar`}>
+                        <span className="block h-full rounded-full bg-emerald-400/70" style={{ width: `${pct}%` }} />
+                      </span>
+                      <span className="w-10 shrink-0 text-right text-xs text-mist-500">{pct}%</span>
+                    </li>
+                  )
+                })}
+              </ul>
+            )}
           </div>
         </div>
       ) : (

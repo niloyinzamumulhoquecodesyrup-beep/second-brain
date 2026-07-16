@@ -1,0 +1,363 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Mind — Overview tab color demo</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Cormorant+Garamond:wght@500;600&family=Inter:wght@400;500;600&display=swap" rel="stylesheet">
+<script src="https://cdn.tailwindcss.com"></script>
+<script>
+tailwind.config = {
+  theme: {
+    extend: {
+      colors: {
+        void: '#000000',
+        voidsoft: '#0a0c0e',
+        charcoal: '#262b38',
+        slate: '#4a5568',
+        cream: '#f5f0e8',
+        peach: '#e8a888',
+        amber: '#d99a5c',
+        burnt: '#c97b4a',
+        bronze: '#6b4530',
+        inksplat: '#1a1512',
+        iriblue: '#a8c4d4',
+        irilav: '#c4b4d4',
+        irimint: '#a8d4c0',
+        iripink: '#e8b8c4',
+        gold: '#f0c878',
+      },
+      fontFamily: {
+        serif: ['"Cormorant Garamond"', 'Georgia', 'serif'],
+        sans: ['Inter', 'system-ui', '-apple-system', 'sans-serif'],
+      }
+    }
+  }
+}
+</script>
+<style>
+  body { font-family: Inter, system-ui, sans-serif; }
+  .font-serif { font-family: "Cormorant Garamond", Georgia, serif; }
+  @keyframes marquee { from { transform: translateX(0); } to { transform: translateX(-50%); } }
+  .ticker-track { animation: marquee 28s linear infinite; }
+  .hidden-version { display: none; }
+</style>
+</head>
+<body class="bg-[#111] text-cream">
+
+<div class="sticky top-0 z-50 bg-[#111]/95 backdrop-blur border-b border-white/10 py-4">
+  <div class="max-w-6xl mx-auto px-6 flex flex-wrap items-center justify-between gap-3">
+    <div>
+      <div class="text-xs uppercase tracking-[0.2em] text-white/40">Mind → Overview tab · color demo</div>
+    </div>
+    <div class="flex gap-2">
+      <button id="btn-a" onclick="showVersion('a')" class="px-4 py-2 rounded-lg text-sm font-medium border transition"></button>
+      <button id="btn-b" onclick="showVersion('b')" class="px-4 py-2 rounded-lg text-sm font-medium border transition"></button>
+    </div>
+  </div>
+</div>
+
+<!-- ============================================================= -->
+<!-- VERSION A — Artwork-exact                                      -->
+<!-- ============================================================= -->
+<div id="version-a" class="bg-void">
+  <div class="max-w-6xl mx-auto px-6 pt-6">
+    <p class="text-sm text-iriblue/80 mb-4">Version A optimizes for matching the artwork exactly — one bold distinct color per section.</p>
+  </div>
+
+  <div class="max-w-6xl mx-auto px-6 pb-16 space-y-6">
+
+    <!-- NewsStrip -->
+    <div class="rounded-xl bg-charcoal border border-slate overflow-hidden">
+      <div class="border-b border-iriblue/30 px-4 py-2 text-[11px] uppercase tracking-[0.2em] text-iriblue">Latest in your world</div>
+      <div class="py-3 overflow-hidden whitespace-nowrap">
+        <div class="ticker-track inline-block">
+          <span class="mx-6 text-sm text-cream/80">Deep work research: attention spans shift with novelty →</span>
+          <span class="mx-6 text-sm text-cream/80">New paper on spaced repetition and long-term recall →</span>
+          <span class="mx-6 text-sm text-cream/80">PARA method: quarterly review checklist trending →</span>
+          <span class="mx-6 text-sm text-cream/80">Deep work research: attention spans shift with novelty →</span>
+          <span class="mx-6 text-sm text-cream/80">New paper on spaced repetition and long-term recall →</span>
+          <span class="mx-6 text-sm text-cream/80">PARA method: quarterly review checklist trending →</span>
+        </div>
+      </div>
+    </div>
+
+    <div class="flex items-center justify-between">
+      <h1 class="font-serif text-3xl text-cream">Overview</h1>
+      <button class="px-4 py-2 rounded-lg bg-amber text-inksplat font-semibold text-sm">Run now</button>
+    </div>
+
+    <!-- StalenessBanner -->
+    <div class="rounded-xl bg-burnt/15 border border-burnt/50 px-5 py-4 flex items-center justify-between gap-4">
+      <div class="text-sm text-cream">Your last sync was <span class="text-burnt font-semibold">3 days ago</span> — insights may be stale.</div>
+      <button class="text-xs px-3 py-1.5 rounded-lg border border-burnt text-burnt font-medium">Copy refresh prompt</button>
+    </div>
+
+    <!-- CycleHealthCard -->
+    <div class="rounded-xl bg-charcoal border border-slate px-5 py-3 flex items-center gap-3">
+      <span class="w-2.5 h-2.5 rounded-full bg-irimint"></span>
+      <span class="text-sm text-cream">Last cycle: <span class="text-irimint font-medium">ok</span> · 12 notes processed · 2m ago</span>
+    </div>
+
+    <!-- Grid row -->
+    <div class="grid lg:grid-cols-3 gap-6">
+
+      <!-- Whole picture donut -->
+      <div class="rounded-xl bg-charcoal border border-slate border-t-2 border-t-peach p-6">
+        <div class="text-[11px] uppercase tracking-[0.2em] text-peach mb-4">The whole picture</div>
+        <svg viewBox="0 0 120 120" class="w-32 h-32 mx-auto -rotate-90">
+          <circle cx="60" cy="60" r="45" fill="none" stroke="#e8a888" stroke-width="16" stroke-dasharray="56.5 226.2" stroke-dashoffset="0"/>
+          <circle cx="60" cy="60" r="45" fill="none" stroke="#a8c4d4" stroke-width="16" stroke-dasharray="84.8 197.9" stroke-dashoffset="-56.5"/>
+          <circle cx="60" cy="60" r="45" fill="none" stroke="#c4b4d4" stroke-width="16" stroke-dasharray="56.5 226.2" stroke-dashoffset="-141.4"/>
+          <circle cx="60" cy="60" r="45" fill="none" stroke="#d99a5c" stroke-width="16" stroke-dasharray="56.5 226.2" stroke-dashoffset="-197.9"/>
+          <circle cx="60" cy="60" r="45" fill="none" stroke="#4a5568" stroke-width="16" stroke-dasharray="28.3 254.5" stroke-dashoffset="-254.5"/>
+        </svg>
+        <div class="grid grid-cols-2 gap-x-4 gap-y-1.5 mt-4 text-xs">
+          <div class="flex items-center gap-1.5"><span class="w-2 h-2 rounded-full bg-peach"></span>Inbox</div>
+          <div class="flex items-center gap-1.5"><span class="w-2 h-2 rounded-full bg-iriblue"></span>Projects</div>
+          <div class="flex items-center gap-1.5"><span class="w-2 h-2 rounded-full bg-irilav"></span>Areas</div>
+          <div class="flex items-center gap-1.5"><span class="w-2 h-2 rounded-full bg-amber"></span>Resources</div>
+          <div class="flex items-center gap-1.5"><span class="w-2 h-2 rounded-full bg-slate"></span>Archive</div>
+        </div>
+      </div>
+
+      <!-- Open loops -->
+      <div class="rounded-xl bg-charcoal border border-slate border-t-2 border-t-iripink p-6">
+        <div class="text-[11px] uppercase tracking-[0.2em] text-iripink mb-4">Open loops</div>
+        <div class="space-y-3">
+          <div>
+            <div class="text-xs text-cream/70 mb-1">Rewrite onboarding flow</div>
+            <div class="h-2 rounded-full bg-peach" style="width:82%; box-shadow: 0 0 10px #e8a88866"></div>
+          </div>
+          <div>
+            <div class="text-xs text-cream/70 mb-1">Finish Q3 retro notes</div>
+            <div class="h-2 rounded-full bg-amber" style="width:61%; box-shadow: 0 0 10px #d99a5c66"></div>
+          </div>
+          <div>
+            <div class="text-xs text-cream/70 mb-1">Read: attention research paper</div>
+            <div class="h-2 rounded-full bg-amber" style="width:40%; box-shadow: 0 0 10px #d99a5c66"></div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Attention patterns -->
+      <div class="rounded-xl bg-charcoal border border-slate p-6">
+        <div class="text-[11px] uppercase tracking-[0.2em] text-cream/60 mb-4">Attention patterns</div>
+        <svg viewBox="0 0 240 90" class="w-full h-24">
+          <line x1="0" y1="22" x2="240" y2="22" stroke="#a8c4d4" stroke-opacity="0.2" stroke-width="1"/>
+          <line x1="0" y1="45" x2="240" y2="45" stroke="#a8c4d4" stroke-opacity="0.2" stroke-width="1"/>
+          <line x1="0" y1="68" x2="240" y2="68" stroke="#a8c4d4" stroke-opacity="0.2" stroke-width="1"/>
+          <polyline points="0,60 30,50 60,55 90,30 120,38 150,15 180,32 210,25 240,40" fill="none" stroke="#f5f0e8" stroke-width="2"/>
+          <circle cx="150" cy="15" r="4" fill="#f0c878"/>
+        </svg>
+        <div class="flex justify-between text-[10px] text-cream/40 mt-1"><span>Mon</span><span>Wed</span><span>Fri</span><span>Sun</span></div>
+      </div>
+    </div>
+
+    <!-- Interest cluster -->
+    <div class="rounded-xl bg-charcoal border border-slate border-t-2 border-t-irilav p-6">
+      <div class="text-[11px] uppercase tracking-[0.2em] text-irilav mb-2">Interest cluster</div>
+      <div class="font-serif text-xl text-cream mb-2">Attention, memory & focus systems</div>
+      <p class="text-sm text-cream/70">18 notes across 4 projects touch this theme in the last 30 days — up from 6 last month.</p>
+    </div>
+
+    <!-- Goal arrow chart -->
+    <div class="rounded-xl bg-bronze/25 border border-bronze p-6">
+      <div class="text-[11px] uppercase tracking-[0.2em] text-gold mb-4">Inferred goal</div>
+      <div class="font-serif text-lg text-cream mb-4">Ship the second-brain dashboard redesign</div>
+      <svg viewBox="0 0 600 60" class="w-full h-14">
+        <line x1="10" y1="30" x2="560" y2="30" stroke="#6b4530" stroke-width="3"/>
+        <circle cx="10" cy="30" r="6" fill="#6b4530"/>
+        <circle cx="200" cy="30" r="6" fill="#d99a5c"/>
+        <circle cx="380" cy="30" r="6" fill="#d99a5c"/>
+        <polygon points="560,18 580,30 560,42" fill="#f0c878"/>
+      </svg>
+      <div class="flex justify-between text-xs text-cream/60 mt-1"><span>Started</span><span>In progress</span><span>Goal</span></div>
+    </div>
+
+    <!-- Recommendations -->
+    <div>
+      <div class="text-[11px] uppercase tracking-[0.2em] text-cream/60 mb-4">What you might do</div>
+      <div class="grid md:grid-cols-2 gap-6">
+        <div class="rounded-xl bg-charcoal border border-slate border-t-2 border-t-peach p-5">
+          <div class="text-sm font-medium text-cream mb-1">Consolidate attention-research notes</div>
+          <p class="text-xs text-cream/60">4 loose notes could merge into one resource.</p>
+        </div>
+        <div class="rounded-xl bg-charcoal border border-slate border-t-2 border-t-irimint p-5">
+          <div class="text-sm font-medium text-cream mb-1">Revisit the onboarding project</div>
+          <p class="text-xs text-cream/60">No activity in 9 days — still marked active.</p>
+        </div>
+        <div class="rounded-xl bg-charcoal border border-slate border-t-2 border-t-iriblue p-5">
+          <div class="text-sm font-medium text-cream mb-1">Archive completed Q2 goals</div>
+          <p class="text-xs text-cream/60">3 goal notes look finished but are still in Areas.</p>
+        </div>
+        <div class="rounded-xl bg-charcoal border border-slate border-t-2 border-t-irilav p-5">
+          <div class="text-sm font-medium text-cream mb-1">Start a weekly review ritual</div>
+          <p class="text-xs text-cream/60">Cycles run cleaner with a fixed weekly checkpoint.</p>
+        </div>
+      </div>
+    </div>
+
+  </div>
+</div>
+
+<!-- ============================================================= -->
+<!-- VERSION B — ADHD-friendly hybrid                                -->
+<!-- ============================================================= -->
+<div id="version-b" class="bg-voidsoft hidden-version">
+  <div class="max-w-6xl mx-auto px-6 pt-6">
+    <p class="text-sm text-cream/50 mb-4">Version B keeps the same 14 hues but applies a 60-30-10 ratio — muted dominant surface, one secondary tone, bright colors limited to small accents and chart data only.</p>
+  </div>
+
+  <div class="max-w-6xl mx-auto px-6 pb-16 space-y-6">
+
+    <!-- NewsStrip -->
+    <div class="rounded-xl bg-charcoal/60 border border-slate/30 overflow-hidden">
+      <div class="border-b border-irimint/20 px-4 py-2 text-[11px] uppercase tracking-[0.2em] text-cream/50">Latest in your world</div>
+      <div class="py-3 overflow-hidden whitespace-nowrap">
+        <div class="ticker-track inline-block">
+          <span class="mx-6 text-sm text-cream/60">Deep work research: attention spans shift with novelty →</span>
+          <span class="mx-6 text-sm text-cream/60">New paper on spaced repetition and long-term recall →</span>
+          <span class="mx-6 text-sm text-cream/60">PARA method: quarterly review checklist trending →</span>
+          <span class="mx-6 text-sm text-cream/60">Deep work research: attention spans shift with novelty →</span>
+          <span class="mx-6 text-sm text-cream/60">New paper on spaced repetition and long-term recall →</span>
+          <span class="mx-6 text-sm text-cream/60">PARA method: quarterly review checklist trending →</span>
+        </div>
+      </div>
+    </div>
+
+    <div class="flex items-center justify-between">
+      <h1 class="font-serif text-3xl text-cream">Overview</h1>
+      <button class="px-4 py-2 rounded-lg bg-transparent border border-iriblue text-iriblue font-medium text-sm">Run now</button>
+    </div>
+
+    <!-- StalenessBanner -->
+    <div class="rounded-xl bg-charcoal/60 border border-slate/30 border-l-4 border-l-burnt px-5 py-4 flex items-center justify-between gap-4">
+      <div class="text-sm text-cream/80">Your last sync was <span class="text-cream">3 days ago</span> — insights may be stale.</div>
+      <button class="text-xs px-3 py-1.5 rounded-lg border border-slate text-cream/70 font-medium">Copy refresh prompt</button>
+    </div>
+
+    <!-- CycleHealthCard -->
+    <div class="rounded-xl bg-charcoal/60 border border-slate/30 px-5 py-3 flex items-center gap-3">
+      <span class="w-2 h-2 rounded-full bg-irimint"></span>
+      <span class="text-sm text-cream/80">Last cycle: <span class="text-cream">ok</span> · 12 notes processed · 2m ago</span>
+    </div>
+
+    <!-- Grid row -->
+    <div class="grid lg:grid-cols-3 gap-6">
+
+      <!-- Whole picture donut -->
+      <div class="rounded-xl bg-charcoal/60 border border-slate/30 p-6">
+        <div class="text-[11px] uppercase tracking-[0.2em] text-cream/50 mb-4">The whole picture</div>
+        <svg viewBox="0 0 120 120" class="w-32 h-32 mx-auto -rotate-90">
+          <circle cx="60" cy="60" r="45" fill="none" stroke="#e8a888" stroke-width="12" stroke-dasharray="56.5 226.2" stroke-dashoffset="0" opacity="0.85"/>
+          <circle cx="60" cy="60" r="45" fill="none" stroke="#a8c4d4" stroke-width="12" stroke-dasharray="84.8 197.9" stroke-dashoffset="-56.5" opacity="0.85"/>
+          <circle cx="60" cy="60" r="45" fill="none" stroke="#c4b4d4" stroke-width="12" stroke-dasharray="56.5 226.2" stroke-dashoffset="-141.4" opacity="0.85"/>
+          <circle cx="60" cy="60" r="45" fill="none" stroke="#d99a5c" stroke-width="12" stroke-dasharray="56.5 226.2" stroke-dashoffset="-197.9" opacity="0.85"/>
+          <circle cx="60" cy="60" r="45" fill="none" stroke="#4a5568" stroke-width="12" stroke-dasharray="28.3 254.5" stroke-dashoffset="-254.5" opacity="0.85"/>
+        </svg>
+        <div class="grid grid-cols-2 gap-x-4 gap-y-1.5 mt-4 text-xs text-cream/60">
+          <div class="flex items-center gap-1.5"><span class="w-2 h-2 rounded-full bg-peach"></span>Inbox</div>
+          <div class="flex items-center gap-1.5"><span class="w-2 h-2 rounded-full bg-iriblue"></span>Projects</div>
+          <div class="flex items-center gap-1.5"><span class="w-2 h-2 rounded-full bg-irilav"></span>Areas</div>
+          <div class="flex items-center gap-1.5"><span class="w-2 h-2 rounded-full bg-amber"></span>Resources</div>
+          <div class="flex items-center gap-1.5"><span class="w-2 h-2 rounded-full bg-slate"></span>Archive</div>
+        </div>
+      </div>
+
+      <!-- Open loops -->
+      <div class="rounded-xl bg-charcoal/60 border border-slate/30 border-l-2 border-l-irimint p-6">
+        <div class="text-[11px] uppercase tracking-[0.2em] text-cream/50 mb-4">Open loops</div>
+        <div class="space-y-3">
+          <div>
+            <div class="text-xs text-cream/60 mb-1">Rewrite onboarding flow</div>
+            <div class="h-2 rounded-full bg-iriblue/70" style="width:82%"></div>
+          </div>
+          <div>
+            <div class="text-xs text-cream/60 mb-1">Finish Q3 retro notes</div>
+            <div class="h-2 rounded-full bg-iriblue/50" style="width:61%"></div>
+          </div>
+          <div>
+            <div class="text-xs text-cream/60 mb-1">Read: attention research paper</div>
+            <div class="h-2 rounded-full bg-iriblue/30" style="width:40%"></div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Attention patterns -->
+      <div class="rounded-xl bg-charcoal/60 border border-slate/30 p-6">
+        <div class="text-[11px] uppercase tracking-[0.2em] text-cream/50 mb-4">Attention patterns</div>
+        <svg viewBox="0 0 240 90" class="w-full h-24">
+          <line x1="0" y1="22" x2="240" y2="22" stroke="#4a5568" stroke-opacity="0.3" stroke-width="1"/>
+          <line x1="0" y1="45" x2="240" y2="45" stroke="#4a5568" stroke-opacity="0.3" stroke-width="1"/>
+          <line x1="0" y1="68" x2="240" y2="68" stroke="#4a5568" stroke-opacity="0.3" stroke-width="1"/>
+          <polyline points="0,60 30,50 60,55 90,30 120,38 150,15 180,32 210,25 240,40" fill="none" stroke="#f5f0e8" stroke-opacity="0.7" stroke-width="1.5"/>
+          <circle cx="150" cy="15" r="3" fill="#f0c878"/>
+        </svg>
+        <div class="flex justify-between text-[10px] text-cream/30 mt-1"><span>Mon</span><span>Wed</span><span>Fri</span><span>Sun</span></div>
+      </div>
+    </div>
+
+    <!-- Interest cluster -->
+    <div class="rounded-xl bg-charcoal/60 border border-slate/30 border-l-2 border-l-irilav p-6">
+      <div class="text-[11px] uppercase tracking-[0.2em] text-cream/50 mb-2">Interest cluster</div>
+      <div class="font-serif text-xl text-cream mb-2">Attention, memory & focus systems</div>
+      <p class="text-sm text-cream/60">18 notes across 4 projects touch this theme in the last 30 days — up from 6 last month.</p>
+    </div>
+
+    <!-- Goal arrow chart -->
+    <div class="rounded-xl bg-charcoal/60 border border-slate/30 p-6">
+      <div class="text-[11px] uppercase tracking-[0.2em] text-cream/50 mb-4">Inferred goal</div>
+      <div class="font-serif text-lg text-cream mb-4">Ship the second-brain dashboard redesign</div>
+      <svg viewBox="0 0 600 60" class="w-full h-14">
+        <line x1="10" y1="30" x2="560" y2="30" stroke="#4a5568" stroke-width="2"/>
+        <circle cx="10" cy="30" r="5" fill="#4a5568"/>
+        <circle cx="200" cy="30" r="5" fill="#4a5568"/>
+        <circle cx="380" cy="30" r="5" fill="#4a5568"/>
+        <polygon points="560,20 578,30 560,40" fill="#f0c878"/>
+      </svg>
+      <div class="flex justify-between text-xs text-cream/50 mt-1"><span>Started</span><span>In progress</span><span>Goal</span></div>
+    </div>
+
+    <!-- Recommendations -->
+    <div>
+      <div class="text-[11px] uppercase tracking-[0.2em] text-cream/50 mb-4">What you might do</div>
+      <div class="grid md:grid-cols-2 gap-6">
+        <div class="rounded-xl bg-charcoal/60 border border-slate/30 p-5">
+          <div class="flex items-center gap-2 mb-1"><span class="w-1.5 h-1.5 rounded-full bg-peach"></span><span class="text-sm font-medium text-cream">Consolidate attention-research notes</span></div>
+          <p class="text-xs text-cream/50">4 loose notes could merge into one resource.</p>
+        </div>
+        <div class="rounded-xl bg-charcoal/60 border border-slate/30 p-5">
+          <div class="flex items-center gap-2 mb-1"><span class="w-1.5 h-1.5 rounded-full bg-irimint"></span><span class="text-sm font-medium text-cream">Revisit the onboarding project</span></div>
+          <p class="text-xs text-cream/50">No activity in 9 days — still marked active.</p>
+        </div>
+        <div class="rounded-xl bg-charcoal/60 border border-slate/30 p-5">
+          <div class="flex items-center gap-2 mb-1"><span class="w-1.5 h-1.5 rounded-full bg-iriblue"></span><span class="text-sm font-medium text-cream">Archive completed Q2 goals</span></div>
+          <p class="text-xs text-cream/50">3 goal notes look finished but are still in Areas.</p>
+        </div>
+        <div class="rounded-xl bg-charcoal/60 border border-slate/30 p-5">
+          <div class="flex items-center gap-2 mb-1"><span class="w-1.5 h-1.5 rounded-full bg-irilav"></span><span class="text-sm font-medium text-cream">Start a weekly review ritual</span></div>
+          <p class="text-xs text-cream/50">Cycles run cleaner with a fixed weekly checkpoint.</p>
+        </div>
+      </div>
+    </div>
+
+  </div>
+</div>
+
+<script>
+function showVersion(v) {
+  document.getElementById('version-a').classList.toggle('hidden-version', v !== 'a');
+  document.getElementById('version-b').classList.toggle('hidden-version', v !== 'b');
+  document.getElementById('btn-a').className = 'px-4 py-2 rounded-lg text-sm font-medium border transition ' + (v === 'a' ? 'bg-amber text-inksplat border-amber' : 'bg-transparent text-white/50 border-white/20');
+  document.getElementById('btn-b').className = 'px-4 py-2 rounded-lg text-sm font-medium border transition ' + (v === 'b' ? 'bg-iriblue text-inksplat border-iriblue' : 'bg-transparent text-white/50 border-white/20');
+}
+document.getElementById('btn-a').textContent = 'A · Artwork-exact';
+document.getElementById('btn-b').textContent = 'B · ADHD-friendly hybrid';
+showVersion('a');
+</script>
+
+</body>
+</html>

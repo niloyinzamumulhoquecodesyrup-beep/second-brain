@@ -55,7 +55,7 @@ export default function Capture({ user }) {
   return (
     <Layout user={user}>
       <p className="label mb-2">Capture</p>
-      <h1 className="mb-2 font-serif text-4xl font-light text-white">What resonated with you?</h1>
+      <h1 className="mb-2 font-serif text-4xl font-light text-mist-100">What resonated with you?</h1>
       <p className="mb-8 max-w-2xl text-sm text-mist-400">
         Reflect on the last 24 hours. Capture what genuinely sparks interest — not everything, just what feels like
         a knowledge asset. Don't stop to decide where it belongs — everything lands in your Inbox by default and

@@ -44,7 +44,7 @@ export default function Distill({ user }) {
   return (
     <Layout user={user}>
       <p className="label mb-2 !text-gold-400">Distill</p>
-      <h1 className="mb-2 font-serif text-4xl font-light text-white">Refine to the essence</h1>
+      <h1 className="mb-2 font-serif text-4xl font-light text-mist-100">Refine to the essence</h1>
       <p className="mb-8 max-w-2xl text-sm text-mist-400">
         Read → highlight → bold → summarize. Write an executive summary of only what matters — the most distilled
         version becomes the most accessible one later.
@@ -74,7 +74,7 @@ export default function Distill({ user }) {
               <p className="truncate text-sm text-mist-100">{n.title}</p>
               <div className="mt-1 flex items-center gap-2">
                 <ParaBadge para={n.para} />
-                {n.distilled && <span className="text-[10px] uppercase tracking-wide text-gold-400">Distilled</span>}
+                {n.distilled && <span className="text-[13px] uppercase tracking-wide text-gold-400">Distilled</span>}
               </div>
             </button>
           ))}
@@ -83,8 +83,8 @@ export default function Distill({ user }) {
         <div className="card p-6 lg:col-span-2">
           {selected ? (
             <div>
-              <h3 className="font-serif text-2xl text-white">{selected.title}</h3>
-              <p className="mt-3 whitespace-pre-wrap text-sm leading-relaxed text-mist-300">
+              <h3 className="font-serif text-2xl text-mist-100">{selected.title}</h3>
+              <p className="mt-3 max-w-[65ch] whitespace-pre-wrap text-sm leading-relaxed text-mist-300">
                 {(selected.content || '').slice(0, 1200)}
               </p>
               <label className="mb-1.5 mt-6 block text-xs uppercase tracking-wider text-mist-400">Executive summary</label>

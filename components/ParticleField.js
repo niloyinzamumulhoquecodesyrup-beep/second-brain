@@ -45,6 +45,9 @@ const ParticleField = forwardRef(function ParticleField({ className = '' }, ref)
     const canvas = canvasRef.current
     const ctx = canvas.getContext('2d')
     const dpr = Math.min(window.devicePixelRatio || 1, 2)
+    const reduced =
+      document.documentElement.dataset.calmMode === 'on' ||
+      window.matchMedia('(prefers-reduced-motion: reduce)').matches
     let width = 0
     let height = 0
     let raf
@@ -101,8 +104,9 @@ const ParticleField = forwardRef(function ParticleField({ className = '' }, ref)
         }
       }
 
-      raf = requestAnimationFrame(draw)
+      if (!reduced) raf = requestAnimationFrame(draw)
     }
+    // Reduced-motion / Calm Mode: render one static frame instead of looping forever.
     raf = requestAnimationFrame(draw)
 
     return () => {

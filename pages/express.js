@@ -117,7 +117,7 @@ export default function Express({ user }) {
   return (
     <Layout user={user}>
       <p className="label mb-2">Express</p>
-      <h1 className="mb-2 font-serif text-4xl font-light text-white">Turn knowledge into outcomes</h1>
+      <h1 className="mb-2 font-serif text-4xl font-light text-mist-100">Turn knowledge into outcomes</h1>
       <p className="mb-8 max-w-2xl text-sm text-mist-400">
         Tasks are the next actions that move a project forward — small, realistic, one at a time. Packets are
         reusable pieces of output (a summary, a draft, a quote) worth keeping and reusing, not checking off.

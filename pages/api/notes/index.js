@@ -31,8 +31,11 @@ async function handler(req, res) {
     }
 
     try {
+      // §4h: embedding is a 384-float vector, excluded here so the notes list response
+      // (read on every Organize/Capture/Distill page load) doesn't carry it unused.
       const { rows } = await pool.query(
-        `SELECT * FROM notes WHERE ${clauses.join(' AND ')} ORDER BY pinned DESC, created_at DESC`,
+        `SELECT id, user_id, title, content, para, status, tags, source_url, executive_summary, distilled, pinned, embedded_at, created_at, updated_at
+         FROM notes WHERE ${clauses.join(' AND ')} ORDER BY pinned DESC, created_at DESC`,
         params
       )
       res.status(200).json(rows)

@@ -9,8 +9,13 @@ async function handler(req, res) {
   const userId = req.user.id
   const { id } = req.query
 
+  // §4h: embedding is a 384-float vector — excluded from every client-facing note
+  // query below (this file and pages/api/notes/index.js) so it never bloats a
+  // response the frontend has no use for. embedded_at is tiny and harmless to keep.
+  const NOTE_COLUMNS = 'id, user_id, title, content, para, status, tags, source_url, executive_summary, distilled, pinned, embedded_at, created_at, updated_at'
+
   if (req.method === 'GET') {
-    const { rows } = await pool.query('SELECT * FROM notes WHERE id=$1 AND user_id=$2', [id, userId])
+    const { rows } = await pool.query(`SELECT ${NOTE_COLUMNS} FROM notes WHERE id=$1 AND user_id=$2`, [id, userId])
     if (!rows[0]) return res.status(404).json({ error: 'Not found' })
     return res.status(200).json(rows[0])
   } else if (req.method === 'PUT') {
@@ -27,7 +32,7 @@ async function handler(req, res) {
         pinned = COALESCE($8,pinned),
         source_url = COALESCE($9,source_url),
         updated_at = now()
-       WHERE id = $10 AND user_id = $11 RETURNING *`,
+       WHERE id = $10 AND user_id = $11 RETURNING ${NOTE_COLUMNS}`,
       [title, content, para, executive_summary, distilled, status, tags, pinned, source_url, id, userId]
     )
     if (!rows[0]) return res.status(404).json({ error: 'Not found' })

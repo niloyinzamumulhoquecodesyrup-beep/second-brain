@@ -140,7 +140,7 @@ export default function Focus({ user }) {
   return (
     <Layout user={user}>
       <p className="label mb-2 !text-orange-300">Focus</p>
-      <h1 className="mb-2 font-serif text-4xl font-light text-white">One session at a time</h1>
+      <h1 className="mb-2 font-serif text-4xl font-light text-mist-100">One session at a time</h1>
       <p className="mb-8 max-w-2xl text-sm text-mist-400">
         Pick a task, start the timer, work until it rings. Completion over perfection.
       </p>
@@ -170,7 +170,7 @@ export default function Focus({ user }) {
               }}
             >
               <div>
-                <p className="text-center font-serif text-5xl font-light text-white">{formatTime(secondsLeft)}</p>
+                <p className="text-center font-serif text-5xl font-light text-mist-100">{formatTime(secondsLeft)}</p>
                 <p className="mt-2 text-center text-xs uppercase tracking-[0.2em] text-mist-400">
                   {justCompleted ? 'Session complete' : preset.mode === 'break' ? 'Break' : 'Focus'}
                 </p>
@@ -224,7 +224,7 @@ export default function Focus({ user }) {
 
           <div className="card p-6">
             <p className="label mb-2 !text-orange-300">Today</p>
-            <p className="font-serif text-4xl font-light text-white">{sessionsToday}</p>
+            <p className="font-serif text-4xl font-light text-mist-100">{sessionsToday}</p>
             <p className="mt-1 text-xs text-mist-400">focus session{sessionsToday === 1 ? '' : 's'} completed</p>
           </div>
         </div>
