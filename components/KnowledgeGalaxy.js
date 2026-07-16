@@ -8,59 +8,91 @@ import Link from 'next/link'
 // not anything's been captured there yet. Pan by dragging, zoom with the wheel/trackpad
 // pinch/touch pinch — a map, not a click-to-focus drill-down.
 //
-// v1 note: the taxonomy SHAPE below is a hardcoded seed, not cycle-generated. `goalName`
-// on a leaf is the join key against real `inferred_goal` rows (data.byKind.inferred_goal
-// from /api/mind/insights) — note counts and click-through detail are live; the tree
-// structure itself should eventually be written by a refresh cycle into mind_sections/
-// mind_knowledge (per MIND_MODEL_BRIEF §4h/§4i) instead of living here.
-const TAXONOMY = {
-  id: 'root', name: 'All Knowledge', cluster: 'root',
-  children: [
-    { id: 'science', name: 'Science', cluster: 'science', children: [
-      { id: 'biology', name: 'Biology', cluster: 'science', children: [
-        { id: 'neuroscience', name: 'Neuroscience', cluster: 'science', children: [
-          { id: 'neurobiology', name: 'Neurobiology', cluster: 'science', goalName: 'Neurobiology' },
-          { id: 'neuroanatomy', name: 'Neuroanatomy', cluster: 'science' },
-          { id: 'neurophysiology', name: 'Neurophysiology', cluster: 'science' },
-          { id: 'cogneuro', name: 'Cognitive Neuroscience', cluster: 'science' }
-        ] },
-        { id: 'genetics', name: 'Genetics', cluster: 'science' },
-        { id: 'cellbio', name: 'Cell Biology', cluster: 'science' }
-      ] },
-      { id: 'psychology', name: 'Psychology', cluster: 'science', children: [
-        { id: 'cogpsych', name: 'Cognitive Psychology', cluster: 'science' },
-        { id: 'clinpsych', name: 'Clinical Psychology', cluster: 'science' }
-      ] },
-      { id: 'physics', name: 'Physics', cluster: 'science' }
-    ] },
-    { id: 'technology', name: 'Technology', cluster: 'technology', children: [
-      { id: 'compsci', name: 'Computer Science', cluster: 'technology', children: [
-        { id: 'ai', name: 'Artificial Intelligence', cluster: 'technology', children: [
-          { id: 'ml', name: 'Machine Learning', cluster: 'technology' },
-          { id: 'nlp', name: 'Natural Language Processing', cluster: 'technology' }
-        ] },
-        { id: 'pkm', name: 'Personal Knowledge Management', cluster: 'technology', children: [
-          { id: 'secondbrain', name: 'Second Brain & PARA Method', cluster: 'technology', goalName: 'Mind Model' },
-          { id: 'notetaking', name: 'Note-Taking Systems', cluster: 'technology' }
-        ] }
-      ] },
-      { id: 'robotics', name: 'Robotics', cluster: 'technology' }
-    ] },
-    { id: 'business', name: 'Business', cluster: 'business', children: [
-      { id: 'entrepreneurship', name: 'Entrepreneurship', cluster: 'business', children: [
-        { id: 'ecommerce', name: 'E-Commerce Operations', cluster: 'business', goalName: 'Satoshi' },
-        { id: 'marketing', name: 'Marketing', cluster: 'business' }
-      ] },
-      { id: 'finance', name: 'Finance', cluster: 'business' }
-    ] }
-  ]
+// The tree used to be a hardcoded object here. It's now written by refresh cycles
+// into the `mind_topics` table (mind_knowledge topic "topic_map_method") so a real,
+// recurring interest — "aerodynamics," anything — earns its own node instead of the
+// map only ever having Science/Technology/Business/Humanities. This constant is now
+// only the last-resort seed: used before the first `/api/mind/topics` response
+// arrives, or if that call fails outright. `goalName` on a flat row is the join key
+// against real `inferred_goal` rows (data.byKind.inferred_goal from /api/mind/insights)
+// — note counts and click-through detail are live.
+const DEFAULT_TOPICS = [
+  { slug: 'root', parent: null, name: 'All Knowledge', cluster: 'root' },
+
+  { slug: 'science', parent: 'root', name: 'Science', cluster: 'science' },
+  { slug: 'biology', parent: 'science', name: 'Biology', cluster: 'science' },
+  { slug: 'neuroscience', parent: 'biology', name: 'Neuroscience', cluster: 'science' },
+  { slug: 'neurobiology', parent: 'neuroscience', name: 'Neurobiology', cluster: 'science', goalName: 'Neurobiology' },
+  { slug: 'neuroanatomy', parent: 'neuroscience', name: 'Neuroanatomy', cluster: 'science' },
+  { slug: 'neurophysiology', parent: 'neuroscience', name: 'Neurophysiology', cluster: 'science' },
+  { slug: 'cogneuro', parent: 'neuroscience', name: 'Cognitive Neuroscience', cluster: 'science' },
+  { slug: 'genetics', parent: 'biology', name: 'Genetics', cluster: 'science' },
+  { slug: 'cellbio', parent: 'biology', name: 'Cell Biology', cluster: 'science' },
+  { slug: 'psychology', parent: 'science', name: 'Psychology', cluster: 'science' },
+  { slug: 'cogpsych', parent: 'psychology', name: 'Cognitive Psychology', cluster: 'science' },
+  { slug: 'clinpsych', parent: 'psychology', name: 'Clinical Psychology', cluster: 'science' },
+  { slug: 'physics', parent: 'science', name: 'Physics', cluster: 'science' },
+
+  { slug: 'technology', parent: 'root', name: 'Technology', cluster: 'technology' },
+  { slug: 'compsci', parent: 'technology', name: 'Computer Science', cluster: 'technology' },
+  { slug: 'ai', parent: 'compsci', name: 'Artificial Intelligence', cluster: 'technology' },
+  { slug: 'ml', parent: 'ai', name: 'Machine Learning', cluster: 'technology' },
+  { slug: 'nlp', parent: 'ai', name: 'Natural Language Processing', cluster: 'technology' },
+  { slug: 'pkm', parent: 'compsci', name: 'Personal Knowledge Management', cluster: 'technology' },
+  { slug: 'secondbrain', parent: 'pkm', name: 'Second Brain & PARA Method', cluster: 'technology', goalName: 'Mind Model' },
+  { slug: 'notetaking', parent: 'pkm', name: 'Note-Taking Systems', cluster: 'technology' },
+  { slug: 'robotics', parent: 'technology', name: 'Robotics', cluster: 'technology' },
+
+  { slug: 'business', parent: 'root', name: 'Business', cluster: 'business' },
+  { slug: 'entrepreneurship', parent: 'business', name: 'Entrepreneurship', cluster: 'business' },
+  { slug: 'ecommerce', parent: 'entrepreneurship', name: 'E-Commerce Operations', cluster: 'business', goalName: 'Satoshi' },
+  { slug: 'marketing', parent: 'entrepreneurship', name: 'Marketing', cluster: 'business' },
+  { slug: 'finance', parent: 'business', name: 'Finance', cluster: 'business' },
+
+  { slug: 'humanities', parent: 'root', name: 'Humanities', cluster: 'humanities' },
+  { slug: 'philosophy', parent: 'humanities', name: 'Philosophy', cluster: 'humanities' },
+  { slug: 'metaphysics', parent: 'philosophy', name: 'Metaphysics', cluster: 'humanities' },
+  { slug: 'ontology', parent: 'metaphysics', name: 'Ontology', cluster: 'humanities' },
+  { slug: 'philmind', parent: 'metaphysics', name: 'Philosophy of Mind', cluster: 'humanities' },
+  { slug: 'epistemology', parent: 'philosophy', name: 'Epistemology', cluster: 'humanities' },
+  { slug: 'ethics', parent: 'philosophy', name: 'Ethics', cluster: 'humanities' },
+  { slug: 'logic', parent: 'philosophy', name: 'Logic', cluster: 'humanities' },
+  { slug: 'aesthetics', parent: 'philosophy', name: 'Aesthetics', cluster: 'humanities' },
+  { slug: 'polphil', parent: 'philosophy', name: 'Political Philosophy', cluster: 'humanities' },
+  { slug: 'history', parent: 'humanities', name: 'History', cluster: 'humanities' },
+  { slug: 'linguistics', parent: 'humanities', name: 'Linguistics', cluster: 'humanities' },
+  { slug: 'literature', parent: 'humanities', name: 'Literature', cluster: 'humanities' }
+]
+
+// Flat DB rows (slug/parent_slug/name/cluster/goal_name) -> the nested {id, name,
+// cluster, goalName, children} shape the force layout below already expects.
+// `children` is only attached when a node actually has at least one child — leaf
+// nodes must not carry an (empty-but-truthy) `children` array, since `hubRadius` vs.
+// `leafRadius` and the force-layout walk both branch on `Boolean(node.children)`.
+function buildTree(rows) {
+  const flat = rows && rows.length > 0
+    ? rows.map(r => ({ slug: r.slug, parent: r.parent_slug, name: r.name, cluster: r.cluster, goalName: r.goal_name || undefined }))
+    : DEFAULT_TOPICS
+  const bySlug = {}
+  flat.forEach(t => { bySlug[t.slug] = { id: t.slug, name: t.name, cluster: t.cluster, goalName: t.goalName } })
+  let root = null
+  flat.forEach(t => {
+    const node = bySlug[t.slug]
+    if (!t.parent) { root = node; return }
+    const parent = bySlug[t.parent]
+    if (!parent) return
+    if (!parent.children) parent.children = []
+    parent.children.push(node)
+  })
+  return root || bySlug.root || { id: 'root', name: 'All Knowledge', cluster: 'root' }
 }
 
 const CLUSTER_RGB = {
   root: '148,163,184',
-  science: '110,231,150',   // green
-  technology: '96,190,250', // blue/cyan
-  business: '251,113,146'   // rose/red
+  science: '110,231,150',    // green
+  technology: '96,190,250',  // blue/cyan
+  business: '251,113,146',  // rose/red
+  humanities: '192,145,252' // violet
 }
 
 function flatten(root) {
@@ -120,6 +152,33 @@ function heatFor(notes) {
   return Math.min(1, 0.18 + notes * 0.1)
 }
 
+// Optional heat-gradient overlay (toggle in the header): a blue -> green -> yellow ->
+// orange -> red ramp over the same 0-1 heat value already used for node glow, so
+// "how much interest" reads at a glance the way a real heatmap does, without
+// replacing the lit/unlit dot layout underneath.
+const HEAT_STOPS = [
+  [0.00, [59, 130, 246]],
+  [0.35, [16, 185, 129]],
+  [0.60, [250, 204, 21]],
+  [0.80, [251, 146, 60]],
+  [1.00, [239, 68, 68]]
+]
+function heatColor(t) {
+  t = clamp(t, 0, 1)
+  for (let i = 0; i < HEAT_STOPS.length - 1; i++) {
+    const [t0, c0] = HEAT_STOPS[i]
+    const [t1, c1] = HEAT_STOPS[i + 1]
+    if (t >= t0 && t <= t1) {
+      const f = (t - t0) / (t1 - t0 || 1)
+      const r = Math.round(c0[0] + (c1[0] - c0[0]) * f)
+      const g = Math.round(c0[1] + (c1[1] - c0[1]) * f)
+      const b = Math.round(c0[2] + (c1[2] - c0[2]) * f)
+      return `${r},${g},${b}`
+    }
+  }
+  return HEAT_STOPS[HEAT_STOPS.length - 1][1].join(',')
+}
+
 function makeStars(count, spread) {
   const stars = []
   for (let i = 0; i < count; i++) {
@@ -136,7 +195,7 @@ function makeStars(count, spread) {
 
 function clamp(v, lo, hi) { return Math.min(hi, Math.max(lo, v)) }
 
-export default function KnowledgeGalaxy({ goals }) {
+export default function KnowledgeGalaxy({ goals, topics }) {
   const canvasRef = useRef(null)
   const wrapRef = useRef(null)
   const [selected, setSelected] = useState(null)
@@ -145,6 +204,12 @@ export default function KnowledgeGalaxy({ goals }) {
   // every time the user selects or deselects a node.
   const selectedRef = useRef(null)
   useEffect(() => { selectedRef.current = selected }, [selected])
+
+  // Heat-gradient overlay toggle. Same ref pattern as `selected` above: flipping this
+  // must repaint the next frame, not rebuild the force layout / reset pan-zoom.
+  const [heatOn, setHeatOn] = useState(true)
+  const heatOnRef = useRef(true)
+  useEffect(() => { heatOnRef.current = heatOn }, [heatOn])
 
   // live join: taxonomy leaf `goalName` -> real inferred_goal row (notes/source_refs)
   const goalByName = {}
@@ -159,7 +224,7 @@ export default function KnowledgeGalaxy({ goals }) {
       document.documentElement.dataset.calmMode === 'on' ||
       window.matchMedia('(prefers-reduced-motion: reduce)').matches
 
-    const { nodes, edges } = runForceLayout(TAXONOMY)
+    const { nodes, edges } = runForceLayout(buildTree(topics))
     nodes.forEach(n => {
       const g = n.ref.goalName ? goalByName[n.ref.goalName] : null
       n.notes = g ? (g.source_refs?.length || 1) : 0
@@ -337,9 +402,38 @@ export default function KnowledgeGalaxy({ goals }) {
           ctx.arc(sx, sy, Math.max(1, r) + 4, 0, Math.PI * 2)
           ctx.stroke()
         }
+      })
 
-        // labels: only once on-screen size clears a legibility threshold, so zooming
-        // in reveals names the way map labels appear as you get closer.
+      // heat-gradient overlay (toggle) — a transparent layer on top of the dots/edges
+      // above, not a replacement for them: a soft colored field per lit node, ramped
+      // blue->red by its own heat value, additively blended so overlapping interest
+      // reads as a hotter blend rather than nodes just stacking on top of each other.
+      if (heatOnRef.current) {
+        ctx.save()
+        ctx.globalCompositeOperation = 'lighter'
+        nodes.forEach(n => {
+          if (!n.lit) return
+          const [sx, sy] = worldToScreen(n.x, n.y)
+          if (sx < -200 || sx > width + 200 || sy < -200 || sy > height + 200) return
+          const radius = (n.r * 4 + 24 + n.heat * 60) * zoom
+          const rgb = heatColor(n.heat)
+          const grad = ctx.createRadialGradient(sx, sy, 0, sx, sy, radius)
+          grad.addColorStop(0, `rgba(${rgb},${(0.5 * n.heat + 0.18).toFixed(2)})`)
+          grad.addColorStop(1, `rgba(${rgb},0)`)
+          ctx.fillStyle = grad
+          ctx.beginPath()
+          ctx.arc(sx, sy, radius, 0, Math.PI * 2)
+          ctx.fill()
+        })
+        ctx.restore()
+      }
+
+      // labels: only once on-screen size clears a legibility threshold, so zooming
+      // in reveals names the way map labels appear as you get closer.
+      nodes.forEach(n => {
+        const [sx, sy] = worldToScreen(n.x, n.y)
+        if (sx < -40 || sx > width + 40 || sy < -40 || sy > height + 40) return
+        const r = n.r * zoom
         const screenR = n.r * zoom
         if (screenR > 9 || (n.lit && screenR > 5)) {
           ctx.font = n.lit ? '600 12px -apple-system,system-ui,sans-serif' : '400 11px -apple-system,system-ui,sans-serif'
@@ -375,13 +469,22 @@ export default function KnowledgeGalaxy({ goals }) {
       canvas.removeEventListener('touchend', onTouchEnd)
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [goals])
+  }, [goals, topics])
 
   return (
     <div className="card overflow-hidden p-0">
       <div className="flex items-center justify-between border-b border-ink-700 px-6 py-3">
         <p className="label !mb-0 !text-emerald-300">Interest clusters &amp; how you work</p>
-        <p className="text-[11px] text-mist-500">drag to pan · scroll or pinch to zoom · tap a lit region</p>
+        <div className="flex items-center gap-4">
+          <p className="text-[11px] text-mist-500">drag to pan · scroll or pinch to zoom · tap a lit region</p>
+          <button
+            onClick={() => setHeatOn(v => !v)}
+            className={`chip !py-1 !text-[11px] ${heatOn ? 'border-gold-400/50 text-gold-300' : ''}`}
+            title="Toggle the heat-gradient overlay"
+          >
+            Heat layer: {heatOn ? 'on' : 'off'}
+          </button>
+        </div>
       </div>
       <div ref={wrapRef} className="relative" style={{ height: 460 }}>
         <canvas ref={canvasRef} className="block h-full w-full touch-none" style={{ cursor: 'grab' }} />

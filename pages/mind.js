@@ -226,7 +226,7 @@ function buildRefreshPrompt(user) {
 
   return `${anchor}
 
-Refresh my Mind Model following the refinement loop (mind_knowledge topic "refinement_loop"): read all mind_knowledge rows first — including "adhd_support_map" — then my notes, tasks, packets, activity_log, and current mind_insights via the Supabase MCP. Re-run POST /api/mind/synthesize to refresh the four templated kinds (interest_cluster, open_loop, attention_pattern, dormant_revival). Then write a fresh "overview" in your own words (mirror, not oracle — describe, don't direct), and update "user_model"/"recommendation" per the meta_map/learning_path_method/resource_research_method/adhd_support_map docs at whatever tier the data supports. Ground "patterns"/"cycles" evidence in real nearest-neighbor queries against notes.embedding (ORDER BY embedding <=> embedding LIMIT N, cosine distance — §4h) instead of eyeballing keyword overlap wherever notes have an embedding; notes still missing one (client-side step hasn't run for them yet) just don't participate — don't treat that as a gap to fill manually. Every user_model row must set section to exactly one of patterns | triggers | progress | cycles (per adhd_support_map — never diagnosis, defense mechanisms, transference, or risk/self-harm scoring). "inferred_goal" is one row PER distinct goal, never a single paragraph bundling several goals together — if the notes point at multiple separate things the user seems to be working toward, write one row for each. Every inferred_goal row's metadata must include a short name (e.g. metadata: {"name": "Neurobiology"}) — the dashboard renders it as a labeled banner, not a wall of prose, so a real short name beats a truncated first sentence every time. A goal that's gone quiet still counts as a goal and gets its own inferred_goal row even if a dormant_revival row already exists for the same notes — the two kinds answer different questions ("what are you working toward" vs. "what went quiet") and both can be true for the same thing at once. Write scope='user' calibration rows back to mind_knowledge. Insert everything via the Supabase MCP, superseding prior rows of each kind.
+Refresh my Mind Model following the refinement loop (mind_knowledge topic "refinement_loop"): read all mind_knowledge rows first — including "adhd_support_map" and "topic_map_method" — then my notes, tasks, packets, activity_log, and current mind_insights via the Supabase MCP. Re-run POST /api/mind/synthesize to refresh the four templated kinds (interest_cluster, open_loop, attention_pattern, dormant_revival). Then write a fresh "overview" in your own words (mirror, not oracle — describe, don't direct), and update "user_model"/"recommendation" per the meta_map/learning_path_method/resource_research_method/adhd_support_map docs at whatever tier the data supports. Ground "patterns"/"cycles" evidence in real nearest-neighbor queries against notes.embedding (ORDER BY embedding <=> embedding LIMIT N, cosine distance — §4h) instead of eyeballing keyword overlap wherever notes have an embedding; notes still missing one (client-side step hasn't run for them yet) just don't participate — don't treat that as a gap to fill manually. Every user_model row must set section to exactly one of patterns | triggers | progress | cycles (per adhd_support_map — never diagnosis, defense mechanisms, transference, or risk/self-harm scoring). "inferred_goal" is one row PER distinct goal, never a single paragraph bundling several goals together — if the notes point at multiple separate things the user seems to be working toward, write one row for each. Every inferred_goal row's metadata must include a short name (e.g. metadata: {"name": "Neurobiology"}) — the dashboard renders it as a labeled banner, not a wall of prose, so a real short name beats a truncated first sentence every time. This name is also the live join onto the knowledge-galaxy map: read mind_knowledge topic "topic_map_method" and the current mind_topics rows for this account, and use goal_name (set on the one leaf node that matches this exact name) so the interest lights up in the right place. Before writing a new inferred_goal, check whether its topic already has a home in mind_topics — if not, grow the tree per that doc's rules (upsert by (user_id, slug), never touch the root row, never rename a slug, cap new nodes at 5 per cycle, only add a node for a topic with real recurring evidence, one leaf if it fits an existing hub, a short hub+leaf chain only if the field genuinely has that structure) rather than leaving every non-fitting interest stuck in Science/Tech/Business/Humanities by default. A goal that's gone quiet still counts as a goal and gets its own inferred_goal row even if a dormant_revival row already exists for the same notes — the two kinds answer different questions ("what are you working toward" vs. "what went quiet") and both can be true for the same thing at once. Write scope='user' calibration rows back to mind_knowledge. Insert everything via the Supabase MCP, superseding prior rows of each kind.
 
 Then process the PARA-fun queue (para_fun_queue): first read all existing rows for this account. Leave still-valid pending rows untouched — do not duplicate or re-ask a question that's already waiting for an answer. Mark a row superseded if the note/data it was about has changed enough to invalidate it. Only after that, add new questions — including proposing a new capture if your processing surfaced something genuinely worth capturing. Build questions from the current open_loop/dormant_revival insights plus Inbox age, not new logic.
 
@@ -848,7 +848,7 @@ function AttentionChart({ series, caption }) {
   )
 }
 
-function OverviewTab({ data, loading, running, runStage, runNow, refreshPrompt, cycle, feedItems, stats }) {
+function OverviewTab({ data, loading, running, runStage, runNow, refreshPrompt, cycle, feedItems, stats, topics }) {
   const hasAnything = data && (data.overview || [...KIND_ORDER, 'user_model', 'recommendation'].some(k => data.byKind[k]?.length))
   const recommendations = data ? data.byKind.recommendation || [] : []
   const runLabel = runStage === 'embedding' ? 'Indexing notes…' : runStage === 'synthesizing' ? 'Running…' : 'Run now'
@@ -894,7 +894,7 @@ function OverviewTab({ data, loading, running, runStage, runNow, refreshPrompt, 
           </div>
 
           <div className="mt-6">
-            <KnowledgeGalaxy goals={data.byKind.inferred_goal} />
+            <KnowledgeGalaxy goals={data.byKind.inferred_goal} topics={topics} />
           </div>
 
           <div className="mt-6">
@@ -1319,6 +1319,7 @@ export default function Mind({ user }) {
   const [queueLoading, setQueueLoading] = useState(true)
   const [sections, setSections] = useState([])
   const [sectionsLoading, setSectionsLoading] = useState(true)
+  const [topics, setTopics] = useState([])
   const [cycles, setCycles] = useState(null)
   const [stats, setStats] = useState(null)
   const [submitting, setSubmitting] = useState(false)
@@ -1363,6 +1364,15 @@ export default function Mind({ user }) {
       })
   }
 
+  // The knowledge-galaxy tree a cycle wrote (or the server's fallback seed if none
+  // has run yet, per mind_knowledge topic "topic_map_method") — read-only here.
+  function loadTopics() {
+    return fetch('/api/mind/topics')
+      .then(r => r.json())
+      .then(({ topics: rows }) => setTopics(rows))
+      .catch(() => setTopics([]))
+  }
+
   // §4k: cycle-run history for the health card — read-only, refreshed after Run now too.
   function loadCycles() {
     return fetch('/api/mind/cycles')
@@ -1383,6 +1393,7 @@ export default function Mind({ user }) {
     load()
     loadQueue()
     loadSections()
+    loadTopics()
     loadCycles()
     loadStats()
   }, [])
@@ -1500,7 +1511,7 @@ export default function Mind({ user }) {
 
       {mode === 'list' ? (
         tab === 'overview' ? (
-          <OverviewTab data={data} loading={loading} running={running} runStage={runStage} runNow={runNow} refreshPrompt={refreshPrompt} cycle={cycles} feedItems={feedItems} stats={stats} />
+          <OverviewTab data={data} loading={loading} running={running} runStage={runStage} runNow={runNow} refreshPrompt={refreshPrompt} cycle={cycles} feedItems={feedItems} stats={stats} topics={topics} />
         ) : (
           <ParaFunTab queue={queue} loading={queueLoading} onAnswer={answerQueue} submitting={submitting} />
         )

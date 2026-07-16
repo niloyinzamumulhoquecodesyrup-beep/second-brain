@@ -27,7 +27,8 @@ const DOCS = [
     'https://elqn.org/evaluating-the-quality-of-online-education-key-criteria/',
     'https://levelupcollege.com/how-to-verify-course-credibility-and-instructor-quality/'
   ] },
-  { file: '03_refinement_loop.md', topic: 'refinement_loop', source_urls: [] }
+  { file: '03_refinement_loop.md', topic: 'refinement_loop', source_urls: [] },
+  { file: '05_topic_map_method.md', topic: 'topic_map_method', source_urls: [] }
 ]
 
 async function main() {
