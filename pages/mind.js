@@ -3,7 +3,9 @@ import Link from 'next/link'
 import Layout from '../components/Layout'
 import WaveVisualizer from '../components/WaveVisualizer'
 import ParticleField from '../components/ParticleField'
+import KnowledgeGalaxy from '../components/KnowledgeGalaxy'
 import { requireSessionSSR } from '../lib/pageAuth'
+import { embedPendingNotes } from '../lib/clientEmbeddings'
 
 // §4e/§4f: same rose/emerald/violet/gold/mist accent family as lib/paraTheme.js
 // (Tailwind class names there, hex here since the visualizer paints on canvas) —
@@ -224,7 +226,7 @@ function buildRefreshPrompt(user) {
 
   return `${anchor}
 
-Refresh my Mind Model following the refinement loop (mind_knowledge topic "refinement_loop"): read all mind_knowledge rows first — including "adhd_support_map" — then my notes, tasks, packets, activity_log, and current mind_insights via the Supabase MCP. Re-run POST /api/mind/synthesize to refresh the four templated kinds (interest_cluster, open_loop, attention_pattern, dormant_revival). Then write a fresh "overview" in your own words (mirror, not oracle — describe, don't direct), and update "user_model"/"recommendation" per the meta_map/learning_path_method/resource_research_method/adhd_support_map docs at whatever tier the data supports. Every user_model row must set section to exactly one of patterns | triggers | progress | cycles (per adhd_support_map — never diagnosis, defense mechanisms, transference, or risk/self-harm scoring). "inferred_goal" is one row PER distinct goal, never a single paragraph bundling several goals together — if the notes point at multiple separate things the user seems to be working toward, write one row for each. Every inferred_goal row's metadata must include a short name (e.g. metadata: {"name": "Neurobiology"}) — the dashboard renders it as a labeled banner, not a wall of prose, so a real short name beats a truncated first sentence every time. A goal that's gone quiet still counts as a goal and gets its own inferred_goal row even if a dormant_revival row already exists for the same notes — the two kinds answer different questions ("what are you working toward" vs. "what went quiet") and both can be true for the same thing at once. Write scope='user' calibration rows back to mind_knowledge. Insert everything via the Supabase MCP, superseding prior rows of each kind.
+Refresh my Mind Model following the refinement loop (mind_knowledge topic "refinement_loop"): read all mind_knowledge rows first — including "adhd_support_map" — then my notes, tasks, packets, activity_log, and current mind_insights via the Supabase MCP. Re-run POST /api/mind/synthesize to refresh the four templated kinds (interest_cluster, open_loop, attention_pattern, dormant_revival). Then write a fresh "overview" in your own words (mirror, not oracle — describe, don't direct), and update "user_model"/"recommendation" per the meta_map/learning_path_method/resource_research_method/adhd_support_map docs at whatever tier the data supports. Ground "patterns"/"cycles" evidence in real nearest-neighbor queries against notes.embedding (ORDER BY embedding <=> embedding LIMIT N, cosine distance — §4h) instead of eyeballing keyword overlap wherever notes have an embedding; notes still missing one (client-side step hasn't run for them yet) just don't participate — don't treat that as a gap to fill manually. Every user_model row must set section to exactly one of patterns | triggers | progress | cycles (per adhd_support_map — never diagnosis, defense mechanisms, transference, or risk/self-harm scoring). "inferred_goal" is one row PER distinct goal, never a single paragraph bundling several goals together — if the notes point at multiple separate things the user seems to be working toward, write one row for each. Every inferred_goal row's metadata must include a short name (e.g. metadata: {"name": "Neurobiology"}) — the dashboard renders it as a labeled banner, not a wall of prose, so a real short name beats a truncated first sentence every time. A goal that's gone quiet still counts as a goal and gets its own inferred_goal row even if a dormant_revival row already exists for the same notes — the two kinds answer different questions ("what are you working toward" vs. "what went quiet") and both can be true for the same thing at once. Write scope='user' calibration rows back to mind_knowledge. Insert everything via the Supabase MCP, superseding prior rows of each kind.
 
 Then process the PARA-fun queue (para_fun_queue): first read all existing rows for this account. Leave still-valid pending rows untouched — do not duplicate or re-ask a question that's already waiting for an answer. Mark a row superseded if the note/data it was about has changed enough to invalidate it. Only after that, add new questions — including proposing a new capture if your processing surfaced something genuinely worth capturing. Build questions from the current open_loop/dormant_revival insights plus Inbox age, not new logic.
 
@@ -309,20 +311,6 @@ function StalenessBanner({ lastUpdated, prompt }) {
         <button onClick={copyPrompt} className="btn-secondary !px-3 !py-1.5 text-xs whitespace-nowrap">
           {copied ? 'Copied' : 'Copy'}
         </button>
-      </div>
-    </div>
-  )
-}
-
-function KindCard({ kind, insights, accentClass }) {
-  if (!insights || insights.length === 0) return null
-  return (
-    <div className={`card p-6 ${accentClass || ''}`}>
-      <p className={`label mb-2 ${accentClass ? '!text-violet-300' : ''}`}>{KIND_LABELS[kind]}</p>
-      <div className="divide-y divide-ink-700">
-        {insights.map(i => (
-          <InsightRow key={i.id} insight={i} />
-        ))}
       </div>
     </div>
   )
@@ -554,7 +542,7 @@ function PathNode({ node, childrenOf, depth, defaultOpen, seen }) {
       >
         {hasDetail && <span className="text-xs text-mist-500">{open ? '▾' : '▸'}</span>}
         {node.type && (
-          <span className={`rounded border px-1.5 py-0.5 text-[10px] uppercase tracking-wide ${NODE_TYPE_STYLE[node.type] || 'text-mist-400 border-ink-700'}`}>
+          <span className={`rounded border px-1.5 py-0.5 text-[13px] uppercase tracking-wide ${NODE_TYPE_STYLE[node.type] || 'text-mist-400 border-ink-700'}`}>
             {node.type}
           </span>
         )}
@@ -604,7 +592,7 @@ function PathTree({ path }) {
         <PathNode key={n.id} node={n} childrenOf={childrenOf} depth={0} defaultOpen={i === 0} seen={new Set()} />
       ))}
       {(path.sequencing_mode || path.timeline) && (
-        <p className="mt-2 text-[11px] text-mist-500">
+        <p className="mt-2 text-[13px] text-mist-500">
           {path.sequencing_mode ? `${path.sequencing_mode} sequencing` : ''}{path.sequencing_mode && path.timeline ? ' · ' : ''}{path.timeline || ''}
         </p>
       )}
@@ -631,7 +619,7 @@ function MiniBarChart({ chart }) {
           </div>
         ))}
       </div>
-      <p className="mt-2 text-[11px] text-mist-500">
+      <p className="mt-2 text-[13px] text-mist-500">
         Source:{' '}
         {chart.source.url ? (
           <a href={chart.source.url} target="_blank" rel="noreferrer" className="hover:text-violet-300">{chart.source.title || chart.source.url} ↗</a>
@@ -664,12 +652,12 @@ function RecommendationCard({ insight }) {
       )}
 
       {Array.isArray(md.keywords_used) && md.keywords_used.length > 0 && (
-        <p className="mt-2 text-[11px] text-mist-500">researched via: {md.keywords_used.join(' · ')}</p>
+        <p className="mt-2 text-[13px] text-mist-500">researched via: {md.keywords_used.join(' · ')}</p>
       )}
 
       {insight.source_refs?.length > 0 && (
         <div className="mt-3">
-          <button onClick={() => setShowSources(s => !s)} className="text-[11px] text-mist-500 hover:text-mist-300">
+          <button onClick={() => setShowSources(s => !s)} className="text-[13px] text-mist-500 hover:text-mist-300">
             {showSources ? 'Hide sources' : `Sources (${insight.source_refs.length})`}
           </button>
           {showSources && <SourceRefs refs={insight.source_refs} />}
@@ -706,8 +694,8 @@ function ParaDonut({ para }) {
             return el
           })}
         </g>
-        <text x="75" y="72" textAnchor="middle" fill="#fff" style={{ fontSize: 24, fontWeight: 300 }}>{total}</text>
-        <text x="75" y="90" textAnchor="middle" fill="#9aa4ae" style={{ fontSize: 9, letterSpacing: 1.5 }}>NOTES</text>
+        <text x="75" y="72" textAnchor="middle" fill="#e7e9eb" style={{ fontSize: 24, fontWeight: 500 }}>{total}</text>
+        <text x="75" y="90" textAnchor="middle" fill="#a7aeb5" style={{ fontSize: 10, letterSpacing: 1.5 }}>NOTES</text>
       </svg>
       <ul className="space-y-1.5">
         {buckets.map(b => (
@@ -730,7 +718,7 @@ function WholePictureCard({ para, overview }) {
       <ParaDonut para={para} />
       {overview && (
         <div className="mt-4 border-t border-ink-700 pt-3">
-          <button onClick={() => setShowText(s => !s)} className="text-[11px] text-mist-500 hover:text-mist-300">
+          <button onClick={() => setShowText(s => !s)} className="text-[13px] text-mist-500 hover:text-mist-300">
             {showText ? 'Hide narrative' : 'Read the narrative'}
           </button>
           {showText && <p className="mt-2 text-xs leading-relaxed text-mist-300">{overview.summary}</p>}
@@ -757,14 +745,24 @@ function parseOpenLoop(insight) {
 }
 
 function OpenLoopBars({ loops }) {
+  const scrollRef = useRef(null)
+  const [overflowing, setOverflowing] = useState(false)
+
+  const rows = useMemo(() => (loops || []).map(parseOpenLoop), [loops])
+
+  useEffect(() => {
+    const el = scrollRef.current
+    if (!el) return
+    setOverflowing(el.scrollHeight > el.clientHeight + 1)
+  }, [rows])
+
   if (!loops || loops.length === 0) {
     return <p className="text-sm text-mist-400">No open loops — nothing captured-but-unfinished right now.</p>
   }
-  const rows = loops.map(parseOpenLoop)
   const maxDays = Math.max(1, ...rows.map(r => r.days || 0))
   return (
     <div className="relative">
-      <div className="max-h-[268px] space-y-4 overflow-hidden">
+      <div ref={scrollRef} className="max-h-[268px] space-y-4 overflow-y-auto scrollbar-thin pr-1">
         {rows.map((r, i) => {
           const color = i === 0 ? PARA_COLORS.project : PARA_COLORS.resource
           const pct = Math.max(12, Math.round(((r.days || 1) / maxDays) * 100))
@@ -785,7 +783,7 @@ function OpenLoopBars({ loops }) {
           )
         })}
       </div>
-      {rows.length > 4 && <div className="pointer-events-none absolute inset-x-0 bottom-0 h-10 bg-gradient-to-t from-ink-950 to-transparent" />}
+      {overflowing && <div className="pointer-events-none absolute inset-x-0 bottom-0 h-10 bg-gradient-to-t from-ink-950 to-transparent" />}
     </div>
   )
 }
@@ -830,7 +828,7 @@ function AttentionChart({ series, caption }) {
         {[0, niceMax / 2, niceMax].map((g, i) => (
           <g key={i}>
             <line x1={padL} x2={W - padR} y1={y(g)} y2={y(g)} stroke="rgba(255,255,255,0.08)" />
-            <text x={padL - 6} y={y(g) + 3} textAnchor="end" fill="#6b7480" style={{ fontSize: 8 }}>{g}</text>
+            <text x={padL - 6} y={y(g) + 3} textAnchor="end" fill="#a7aeb5" style={{ fontSize: 10 }}>{g}</text>
           </g>
         ))}
         <polyline points={line} fill="none" stroke="#5eead4" strokeWidth="2" strokeLinejoin="round" strokeLinecap="round" />
@@ -838,9 +836,9 @@ function AttentionChart({ series, caption }) {
           <circle key={i} cx={x(i)} cy={y(p.count)} r={i === peakIdx ? 4 : 2.5}
             fill={i === peakIdx ? '#f0d9a3' : '#5eead4'} stroke="#0b0f14" strokeWidth="1" />
         ))}
-        <text x={x(peakIdx)} y={y(pts[peakIdx].count) - 8} textAnchor="middle" fill="#f0d9a3" style={{ fontSize: 8 }}>peak {pts[peakIdx].count}</text>
+        <text x={x(peakIdx)} y={y(pts[peakIdx].count) - 8} textAnchor="middle" fill="#f0d9a3" style={{ fontSize: 10 }}>peak {pts[peakIdx].count}</text>
         {labelIdx.map(i => (
-          <text key={i} x={x(i)} y={H - 4} textAnchor="middle" fill="#6b7480" style={{ fontSize: 7.5 }}>
+          <text key={i} x={x(i)} y={H - 4} textAnchor="middle" fill="#a7aeb5" style={{ fontSize: 9 }}>
             {shortDateLabel(pts[i].day)}
           </text>
         ))}
@@ -850,9 +848,10 @@ function AttentionChart({ series, caption }) {
   )
 }
 
-function OverviewTab({ data, loading, running, runNow, refreshPrompt, cycle, feedItems, stats }) {
+function OverviewTab({ data, loading, running, runStage, runNow, refreshPrompt, cycle, feedItems, stats }) {
   const hasAnything = data && (data.overview || [...KIND_ORDER, 'user_model', 'recommendation'].some(k => data.byKind[k]?.length))
   const recommendations = data ? data.byKind.recommendation || [] : []
+  const runLabel = runStage === 'embedding' ? 'Indexing notes…' : runStage === 'synthesizing' ? 'Running…' : 'Run now'
 
   return (
     <>
@@ -861,7 +860,7 @@ function OverviewTab({ data, loading, running, runNow, refreshPrompt, cycle, fee
 
       <div className="mb-8 flex justify-end">
         <button onClick={runNow} disabled={running} className="btn-primary">
-          {running ? 'Running…' : 'Run now'}
+          {runLabel}
         </button>
       </div>
 
@@ -895,7 +894,7 @@ function OverviewTab({ data, loading, running, runNow, refreshPrompt, cycle, fee
           </div>
 
           <div className="mt-6">
-            <KindCard kind="interest_cluster" insights={data.byKind.interest_cluster} />
+            <KnowledgeGalaxy goals={data.byKind.inferred_goal} />
           </div>
 
           <div className="mt-6">
@@ -1015,7 +1014,7 @@ function ParaFunCard({ item, onAnswer, submitting }) {
   return (
     <div className="card border-t-2 border-emerald-400/40 p-8">
       <p className="label mb-3 !text-emerald-300">{item.section}</p>
-      <h2 className="mb-6 font-serif text-2xl font-light text-white">{item.question_text}</h2>
+      <h2 className="mb-6 font-serif text-2xl font-light text-mist-100">{item.question_text}</h2>
       <AnswerControls key={item.id} item={item} onAnswer={onAnswer} submitting={submitting} />
       <SourceRefs refs={item.source_refs} />
     </div>
@@ -1163,14 +1162,15 @@ function NoteRefsReader({ refs }) {
 // Overview page (not inside Visit Your Brain). Single line, always scrolling, cycle-
 // authored items each linking a real source URL. Pauses on hover.
 function NewsStrip({ items }) {
+  const [paused, setPaused] = useState(false)
   if (!items?.length) return null
-  const animate = items.length > 1
-  const track = animate ? [...items, ...items] : items // duplicate for a seamless loop
+  const animate = items.length > 1 && !paused
+  const track = items.length > 1 ? [...items, ...items] : items // duplicate for a seamless loop
   return (
     <div className="news-strip mb-6 flex items-stretch overflow-hidden rounded-xl border border-ink-700 bg-ink-950">
       <div className="flex shrink-0 items-center gap-2 border-r border-ink-700 bg-emerald-500/10 px-3">
         <span className="h-1.5 w-1.5 animate-pulse rounded-full bg-emerald-400" />
-        <span className="text-[10px] font-semibold uppercase tracking-[0.18em] text-emerald-300">Latest</span>
+        <span className="text-[13px] font-semibold uppercase tracking-[0.18em] text-emerald-300">Latest</span>
       </div>
       <div className="relative flex-1 overflow-hidden py-2">
         <div className={`flex w-max items-center ${animate ? 'news-strip-anim' : 'px-4'}`}>
@@ -1191,6 +1191,16 @@ function NewsStrip({ items }) {
           })}
         </div>
       </div>
+      {items.length > 1 && (
+        <button
+          onClick={() => setPaused(p => !p)}
+          aria-label={paused ? 'Resume scrolling' : 'Pause scrolling'}
+          aria-pressed={paused}
+          className="flex shrink-0 items-center border-l border-ink-700 px-3 text-mist-400 transition hover:text-mist-100"
+        >
+          {paused ? '▶' : '❚❚'}
+        </button>
+      )}
       <style jsx>{`
         .news-strip-anim { animation: news-scroll 60s linear infinite; }
         .news-strip:hover .news-strip-anim { animation-play-state: paused; }
@@ -1249,12 +1259,12 @@ function BrainSection({ def, items, onAnswer, onExit, speak, cancel, speaking, m
         <WaveVisualizer color={color} speaking={speaking} className="h-[300px] w-full sm:h-[380px]" />
 
         <div className="pointer-events-none absolute inset-0 flex items-center justify-center px-8 sm:px-16">
-          <p className="max-w-2xl text-center font-serif text-2xl font-light text-white [text-shadow:0_2px_24px_rgba(0,0,0,0.7)] sm:text-3xl">
+          <p className="max-w-2xl text-center font-serif text-2xl font-light text-mist-100 [text-shadow:0_2px_24px_rgba(0,0,0,0.7)] sm:text-3xl">
             {caption}
           </p>
         </div>
 
-        <p className="absolute left-5 top-5 text-[11px] uppercase tracking-[0.2em] text-mist-400">
+        <p className="absolute left-5 top-5 text-[13px] uppercase tracking-[0.2em] text-mist-400">
           {def.title}{items.length > 1 ? ` · ${clampedIndex + 1}/${items.length}` : ''}
         </p>
 
@@ -1304,6 +1314,7 @@ export default function Mind({ user }) {
   const [data, setData] = useState(null)
   const [loading, setLoading] = useState(true)
   const [running, setRunning] = useState(false)
+  const [runStage, setRunStage] = useState('') // §4h: 'embedding' | 'synthesizing' | '' — shown on the Run now button
   const [queue, setQueue] = useState([])
   const [queueLoading, setQueueLoading] = useState(true)
   const [sections, setSections] = useState([])
@@ -1378,10 +1389,22 @@ export default function Mind({ user }) {
 
   async function runNow() {
     setRunning(true)
+    // §4h: embed any new/edited notes client-side first, so the synthesis job below
+    // (interest_cluster's semantic grouping) sees fresh vectors. Best-effort — a
+    // browser without Worker/WebGPU-ish support, or a failed model load, should never
+    // block the deterministic synthesis the rest of this cycle depends on.
+    try {
+      setRunStage('embedding')
+      await embedPendingNotes()
+    } catch (err) {
+      console.error('embedding step failed:', err)
+    }
+    setRunStage('synthesizing')
     await fetch('/api/mind/synthesize', { method: 'POST' })
     await load()
     await loadCycles()
     await loadStats()
+    setRunStage('')
     setRunning(false)
   }
 
@@ -1447,7 +1470,7 @@ export default function Mind({ user }) {
       <div className="mb-8 flex flex-wrap items-end justify-between gap-4">
         <div>
           <p className="label mb-2">Mind Model</p>
-          <h1 className="font-serif text-4xl font-light text-white">{headerTitle}</h1>
+          <h1 className="font-serif text-4xl font-light text-mist-100">{headerTitle}</h1>
         </div>
         <div className="flex flex-wrap gap-2">
           {mode === 'list' && (
@@ -1477,7 +1500,7 @@ export default function Mind({ user }) {
 
       {mode === 'list' ? (
         tab === 'overview' ? (
-          <OverviewTab data={data} loading={loading} running={running} runNow={runNow} refreshPrompt={refreshPrompt} cycle={cycles} feedItems={feedItems} stats={stats} />
+          <OverviewTab data={data} loading={loading} running={running} runStage={runStage} runNow={runNow} refreshPrompt={refreshPrompt} cycle={cycles} feedItems={feedItems} stats={stats} />
         ) : (
           <ParaFunTab queue={queue} loading={queueLoading} onAnswer={answerQueue} submitting={submitting} />
         )
