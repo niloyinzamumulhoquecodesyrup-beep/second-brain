@@ -493,26 +493,40 @@ const CYCLE_STATUS_STYLE = {
 }
 
 function CycleHealthCard({ cycle }) {
+  const [showNotes, setShowNotes] = useState(false)
   if (!cycle) return null
   const s = CYCLE_STATUS_STYLE[cycle.status] || CYCLE_STATUS_STYLE.ok
   const when = cycle.completed_at || cycle.created_at
-  const stat = (label, value) =>
-    value == null ? null : (
-      <span className="text-mist-400">{label} <span className="text-mist-200">{value}</span></span>
-    )
+  const tiles = [
+    { label: 'Insights', value: cycle.insights_written },
+    { label: 'Sections', value: cycle.sections_written },
+    { label: '~Tokens', value: cycle.tokens_used?.toLocaleString?.() ?? cycle.tokens_used }
+  ].filter(t => t.value != null)
   return (
     <div className="mb-8 rounded-xl border border-ink-700 bg-ink-950 p-4">
-      <div className="flex flex-wrap items-center gap-x-4 gap-y-1 text-xs">
-        <span className="flex items-center gap-1.5 font-medium">
-          <span className={`h-2 w-2 rounded-full ${s.dot}`} />
-          <span className={s.text}>Last cycle {s.label}</span>
-        </span>
-        {when && <span className="text-mist-500">{relativeTimeLabel(new Date(when))}</span>}
-        {stat('insights', cycle.insights_written)}
-        {stat('sections', cycle.sections_written)}
-        {stat('~tokens', cycle.tokens_used?.toLocaleString?.() ?? cycle.tokens_used)}
+      <div className="grid grid-cols-2 gap-2 sm:flex sm:flex-wrap">
+        <div className="flex flex-col justify-center gap-0.5 rounded-lg border border-ink-700 bg-ink-900/40 px-3 py-2 sm:min-w-[140px]">
+          <span className="flex items-center gap-1.5 text-xs font-medium">
+            <span className={`h-2 w-2 shrink-0 rounded-full ${s.dot}`} />
+            <span className={s.text}>Last cycle {s.label}</span>
+          </span>
+          {when && <span className="text-[11px] text-mist-500">{relativeTimeLabel(new Date(when))}</span>}
+        </div>
+        {tiles.map(t => (
+          <div key={t.label} className="flex flex-col justify-center rounded-lg border border-ink-700 bg-ink-900/40 px-3 py-2 sm:min-w-[90px]">
+            <span className="text-lg font-semibold text-mist-100">{t.value}</span>
+            <span className="text-[11px] uppercase tracking-wide text-mist-500">{t.label}</span>
+          </div>
+        ))}
       </div>
-      {cycle.notes && <p className="mt-2 text-xs text-mist-400">{cycle.notes}</p>}
+      {cycle.notes && (
+        <div className="mt-3 border-t border-ink-800 pt-2">
+          <button onClick={() => setShowNotes(v => !v)} className="text-[11px] text-mist-500 hover:text-mist-300">
+            {showNotes ? 'Hide details' : 'Show details'}
+          </button>
+          {showNotes && <p className="mt-2 text-xs leading-relaxed text-mist-400">{cycle.notes}</p>}
+        </div>
+      )}
     </div>
   )
 }
@@ -715,7 +729,7 @@ function ParaDonut({ para }) {
 function WholePictureCard({ para, overview }) {
   const [showText, setShowText] = useState(false)
   return (
-    <div className="card border-t-2 border-emerald-400/40 p-6">
+    <div className="card flex h-full flex-col border-t-2 border-emerald-400/40 p-6">
       <p className="label mb-4 !text-emerald-300">The whole picture</p>
       <ParaDonut para={para} />
       {overview && (
@@ -881,15 +895,15 @@ function OverviewTab({ data, loading, running, runStage, runNow, refreshPrompt, 
       {!loading && hasAnything && (
         <>
           {/* Mockup top row: The Whole Picture (donut) · Open Loops (bars) · Attention Patterns (line) */}
-          <div className="grid items-start gap-6 lg:grid-cols-3">
+          <div className="grid gap-6 lg:grid-cols-3">
             <WholePictureCard para={stats?.para} overview={data.overview} />
 
-            <div className="card border-t-2 border-emerald-400/40 p-6">
+            <div className="card flex h-full flex-col border-t-2 border-emerald-400/40 p-6">
               <p className="label mb-4 !text-emerald-300">Open loops</p>
               <OpenLoopBars loops={data.byKind.open_loop} />
             </div>
 
-            <div className="card border-t-2 border-emerald-400/40 p-6">
+            <div className="card flex h-full flex-col border-t-2 border-emerald-400/40 p-6">
               <p className="label mb-4 !text-emerald-300">Attention patterns</p>
               <AttentionChart series={stats?.capturesByDay} caption={data.byKind.attention_pattern?.[0]?.summary} />
             </div>

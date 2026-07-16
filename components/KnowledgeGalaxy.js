@@ -473,10 +473,10 @@ export default function KnowledgeGalaxy({ goals, topics }) {
 
   return (
     <div className="card overflow-hidden p-0">
-      <div className="flex items-center justify-between border-b border-ink-700 px-6 py-3">
-        <p className="label !mb-0 !text-emerald-300">Interest clusters &amp; how you work</p>
-        <div className="flex items-center gap-4">
-          <p className="text-[11px] text-mist-500">drag to pan · scroll or pinch to zoom · tap a lit region</p>
+      <div className="flex flex-wrap items-center justify-between gap-2 border-b border-ink-700 px-4 py-3 sm:px-6">
+        <p className="label !mb-0 !text-emerald-300">Interest clusters</p>
+        <div className="flex items-center gap-3 sm:gap-4">
+          <p className="hidden text-[11px] text-mist-500 sm:block">drag to pan · scroll or pinch to zoom · tap a lit region</p>
           <button
             onClick={() => setHeatOn(v => !v)}
             className={`chip !py-1 !text-[11px] ${heatOn ? 'border-gold-400/50 text-gold-300' : ''}`}
