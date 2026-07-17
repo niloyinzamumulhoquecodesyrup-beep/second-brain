@@ -1,10 +1,9 @@
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
+import { useEffect, useMemo, useRef, useState } from 'react'
 import Link from 'next/link'
 import Layout from '../components/Layout'
-import TourOverlay from '../components/TourOverlay'
-import WaveVisualizer from '../components/WaveVisualizer'
-import ParticleField from '../components/ParticleField'
 import KnowledgeGalaxy from '../components/KnowledgeGalaxy'
+import Onboarding from '../components/Onboarding'
+import TourOverlay from '../components/TourOverlay'
 import { requireSessionSSR } from '../lib/pageAuth'
 import { embedPendingNotes } from '../lib/clientEmbeddings'
 
@@ -21,9 +20,7 @@ const PARA_COLORS = {
 }
 
 // §4f: accent palette shared with lib/paraTheme.js, keyed by the `accent` column a
-// cycle writes onto each mind_sections row. Read-only insight/feed/reminder sections
-// paint at their section's fixed accent; actionable queue/question sections use
-// PARA_COLORS per item instead (assigned below in sectionItemColor), same as before.
+// cycle writes onto each mind_sections row.
 const ACCENT_HEX = {
   emerald: '#5eead4',
   violet: '#b7a6f7',
@@ -32,41 +29,16 @@ const ACCENT_HEX = {
   mist: '#9aa4ae'
 }
 
-// §4f corrected shape: sections are NOT a fixed list mirroring the app's own insight
-// kinds/queue types — that first version was explicitly rejected (see §4f). The brain
-// field renders whatever `mind_sections` the refresh cycle last wrote (fetched via
-// /api/mind/sections, with a minimal built-in fallback server-side until a cycle has
-// run at least once). This function is the one place that knows how to turn a
-// section's `renderer` + `metadata` into a list of displayable items from data that
-// already exists — no new taxonomy invented here, just a generic reader.
-function sectionItems(def, data, queue) {
+// mind_sections' only live UI consumer now is the "feed" renderer, which powers the
+// Overview page's "Latest in your world" news strip (§4j) — cycle-authored prose,
+// self-contained in metadata.items.
+function sectionItems(def) {
   const meta = def.metadata || {}
-  if (def.renderer === 'insight_list') {
-    const kinds = meta.insightKinds || []
-    return kinds.flatMap(kind => {
-      if (kind === 'overview') return data?.overview ? [{ id: 'overview', summary: data.overview.summary, source_refs: data.overview.source_refs }] : []
-      return data?.byKind?.[kind] || []
-    })
-  }
-  if (def.renderer === 'queue' || def.renderer === 'question') {
-    const types = meta.questionTypes
-    const excludes = meta.excludeTypes || []
-    return queue.filter(q => {
-      if (excludes.includes(q.question_type)) return false
-      if (types && types.length > 0) return types.includes(q.question_type)
-      return true
-    })
-  }
-  // activity_digest / feed / reminder: cycle-authored prose, self-contained in metadata.
   return (meta.items || []).map((it, i) => ({
     id: `${def.slug}-${i}`,
     summary: it.text,
     source_refs: it.url ? [...(it.source_refs || []), { type: 'resource', title: it.text, url: it.url }] : (it.source_refs || [])
   }))
-}
-
-function isQueueRenderer(def) {
-  return def.renderer === 'queue' || def.renderer === 'question'
 }
 
 // §4j: the "feed" renderer ("Latest in your world") presents its items as a scrolling
@@ -100,26 +72,6 @@ function classifyNewsDomain(text) {
   return null
 }
 
-function sectionItemColor(def, item) {
-  if (isQueueRenderer(def)) return PARA_COLORS[item?.note_para] || PARA_COLORS.inbox
-  return ACCENT_HEX[def.accent] || ACCENT_HEX.mist
-}
-
-function sectionItemText(def, item) {
-  return isQueueRenderer(def) ? item.question_text : item.summary
-}
-
-// §4f step 3: simple universal commands recognized inside any section, typed through
-// the same custom-text-input path already built for answers — not open-ended chat.
-function matchUniversalCommand(raw) {
-  const t = (raw || '').trim().toLowerCase()
-  if (!t) return null
-  if (['next', 'continue', 'move on'].includes(t)) return 'next'
-  if (t === 'skip') return 'skip'
-  if (['back to brain', 'back', 'home', 'exit'].includes(t)) return 'home'
-  return null
-}
-
 function relativeTimeLabel(date) {
   if (!date) return 'never'
   const ms = Date.now() - date.getTime()
@@ -127,102 +79,6 @@ function relativeTimeLabel(date) {
   if (days <= 0) return 'today'
   if (days === 1) return '1 day ago'
   return `${days} days ago`
-}
-
-// §4f voice bug fix: (1) Chrome/most browsers silently block speechSynthesis unless
-// the very first speak() in the page's lifetime happens synchronously inside a real
-// click handler — every speak() call here is invoked directly from an onClick/onSubmit,
-// never from a useEffect on mount, so the very first one always qualifies. (2) Chrome's
-// *default* voice (when none is picked) is frequently a remote, network-fetched voice —
-// if that fetch stalls, the utterance hangs forever with speaking:true and no onstart/
-// onend ever firing (confirmed against a live Chrome/macOS session: this exact
-// symptom, unrelated to any gesture/GC issue — see Chromium issue 374263394). The fix
-// is the opposite of the brief's original guidance: explicitly prefer a *local*
-// (on-device, localService===true) voice once the list has loaded, instead of leaving
-// utter.voice unset. (3) the SpeechSynthesisUtterance is kept in a ref so it isn't
-// garbage-collected before its events fire (a real, separately-confirmed Chrome bug).
-function useBrainVoice() {
-  const [speaking, setSpeaking] = useState(false)
-  const [muted, setMuted] = useState(false)
-  const mutedRef = useRef(false)
-  const utteranceRef = useRef(null)
-  const localVoiceRef = useRef(null)
-
-  useEffect(() => { mutedRef.current = muted }, [muted])
-  useEffect(() => () => {
-    if (typeof window !== 'undefined' && 'speechSynthesis' in window) window.speechSynthesis.cancel()
-  }, [])
-  // Chrome's voice list is empty on first call — call getVoices() eagerly on mount
-  // (not tied to a gesture, just enumeration) and again once 'voiceschanged' fires, and
-  // cache the first local voice found so speak() never has to wait on it.
-  useEffect(() => {
-    if (typeof window === 'undefined' || !('speechSynthesis' in window)) return
-    function pickLocalVoice() {
-      const voices = window.speechSynthesis.getVoices()
-      const local = voices.find(v => v.localService && v.lang?.startsWith('en')) || voices.find(v => v.localService)
-      if (local) localVoiceRef.current = local
-    }
-    pickLocalVoice()
-    window.speechSynthesis.addEventListener('voiceschanged', pickLocalVoice)
-    return () => window.speechSynthesis.removeEventListener('voiceschanged', pickLocalVoice)
-  }, [])
-
-  const speak = useCallback((text) => {
-    if (typeof window === 'undefined' || !('speechSynthesis' in window)) return
-    const synth = window.speechSynthesis
-    if (mutedRef.current || !text) {
-      synth.cancel()
-      setSpeaking(false)
-      return
-    }
-    function fire() {
-      const utter = new SpeechSynthesisUtterance(text)
-      utter.rate = 0.98
-      if (localVoiceRef.current) utter.voice = localVoiceRef.current
-      utter.onstart = () => setSpeaking(true)
-      utter.onend = () => setSpeaking(false)
-      utter.onerror = () => setSpeaking(false)
-      utteranceRef.current = utter
-      synth.speak(utter)
-    }
-    // Chrome silently drops speak() if cancel() ran in the same tick — only cancel
-    // (and only then delay) when something is actually queued; the page's very first
-    // speak() call, with nothing to cancel, still fires synchronously inside the
-    // click handler that triggered it, which is what satisfies the gesture gating.
-    if (synth.speaking || synth.pending) {
-      synth.cancel()
-      setTimeout(fire, 50)
-    } else {
-      fire()
-    }
-  }, [])
-
-  const cancel = useCallback(() => {
-    if (typeof window !== 'undefined' && 'speechSynthesis' in window) window.speechSynthesis.cancel()
-    setSpeaking(false)
-  }, [])
-
-  const toggleMute = useCallback(() => {
-    setMuted(m => {
-      const next = !m
-      if (next && typeof window !== 'undefined' && 'speechSynthesis' in window) window.speechSynthesis.cancel()
-      if (next) setSpeaking(false)
-      return next
-    })
-  }, [])
-
-  return { speak, cancel, speaking, muted, toggleMute }
-}
-
-// Mounted content fades/scales in on mount rather than popping — the "convergence /
-// push-in" feel §4f asks for, without needing a JS animation library.
-function useMountTransition() {
-  const [entered, setEntered] = useState(false)
-  useEffect(() => {
-    const raf = requestAnimationFrame(() => setEntered(true))
-    return () => cancelAnimationFrame(raf)
-  }, [])
-  return entered
 }
 
 const KIND_LABELS = {
@@ -252,15 +108,17 @@ function buildRefreshPrompt(user) {
 
   return `${anchor}
 
-Refresh my Mind Model following the refinement loop (mind_knowledge topic "refinement_loop"): read all mind_knowledge rows first — including "adhd_support_map" and "topic_map_method" — then my notes, tasks, packets, activity_log, and current mind_insights via the Supabase MCP. Re-run POST /api/mind/synthesize to refresh the four templated kinds (interest_cluster, open_loop, attention_pattern, dormant_revival). Then write a fresh "overview" in your own words (mirror, not oracle — describe, don't direct), and update "user_model"/"recommendation" per the meta_map/learning_path_method/resource_research_method/adhd_support_map docs at whatever tier the data supports. Ground "patterns"/"cycles" evidence in real nearest-neighbor queries against notes.embedding (ORDER BY embedding <=> embedding LIMIT N, cosine distance — §4h) instead of eyeballing keyword overlap wherever notes have an embedding; notes still missing one (client-side step hasn't run for them yet) just don't participate — don't treat that as a gap to fill manually. Every user_model row must set section to exactly one of patterns | triggers | progress | cycles (per adhd_support_map — never diagnosis, defense mechanisms, transference, or risk/self-harm scoring). "inferred_goal" is one row PER distinct goal, never a single paragraph bundling several goals together — if the notes point at multiple separate things the user seems to be working toward, write one row for each. Every inferred_goal row's metadata must include a short name (e.g. metadata: {"name": "Neurobiology"}) — the dashboard renders it as a labeled banner, not a wall of prose, so a real short name beats a truncated first sentence every time. This name is also the live join onto the knowledge-galaxy map: read mind_knowledge topic "topic_map_method" and the current mind_topics rows for this account, and use goal_name (set on the one leaf node that matches this exact name) so the interest lights up in the right place. Before writing a new inferred_goal, check whether its topic already has a home in mind_topics — if not, grow the tree per that doc's rules (upsert by (user_id, slug), never touch the root row, never rename a slug, cap new nodes at 5 per cycle, only add a node for a topic with real recurring evidence, one leaf if it fits an existing hub, a short hub+leaf chain only if the field genuinely has that structure) rather than leaving every non-fitting interest stuck in Science/Tech/Business/Humanities by default. A goal that's gone quiet still counts as a goal and gets its own inferred_goal row even if a dormant_revival row already exists for the same notes — the two kinds answer different questions ("what are you working toward" vs. "what went quiet") and both can be true for the same thing at once. Write scope='user' calibration rows back to mind_knowledge. Insert everything via the Supabase MCP, superseding prior rows of each kind.
+First, check for unprocessed onboarding imports (mind_knowledge topic "onboarding_import_method"): SELECT * FROM onboarding_imports WHERE user_id = <this account's id> AND processed = false. If any exist, work through that doc before anything else — mine each pasted chat/document/board/journal/calendar for recurring topics (feeding inferred_goal/mind_topics), working-style signals (feeding user_model, cited via source_refs: [{"type":"stat","name":"onboarding_import","value":"<source_type>"}]), and concrete open threads worth a new_capture_proposal in para_fun_queue — filtered hard, since pasted material is noisier than the user's own notes. Mark each one UPDATE onboarding_imports SET processed = true, processed_at = now() once handled, even if nothing in it cleared the bar. If none are unprocessed, skip this step entirely.
+
+Refresh my Mind Model following the refinement loop (mind_knowledge topic "refinement_loop"): read all mind_knowledge rows first — including "adhd_support_map", "topic_map_method", and "field_investigation_method" — then my notes, tasks, packets, activity_log, and current mind_insights via the Supabase MCP. Re-run POST /api/mind/synthesize to refresh the four templated kinds (interest_cluster, open_loop, attention_pattern, dormant_revival). Then write a fresh "overview" in your own words (mirror, not oracle — describe, don't direct), and update "user_model"/"recommendation" per the meta_map/learning_path_method/resource_research_method/adhd_support_map docs at whatever tier the data supports. Ground "patterns"/"cycles" evidence in real nearest-neighbor queries against notes.embedding (ORDER BY embedding <=> embedding LIMIT N, cosine distance — §4h) instead of eyeballing keyword overlap wherever notes have an embedding; notes still missing one (client-side step hasn't run for them yet) just don't participate — don't treat that as a gap to fill manually. Every user_model row must set section to exactly one of patterns | triggers | progress | cycles (per adhd_support_map — never diagnosis, defense mechanisms, transference, or risk/self-harm scoring). "inferred_goal" is one row PER distinct goal, never a single paragraph bundling several goals together — if the notes point at multiple separate things the user seems to be working toward, write one row for each. Every inferred_goal row's metadata must include a short name (e.g. metadata: {"name": "Neurobiology"}) — the dashboard renders it as a labeled banner, not a wall of prose, so a real short name beats a truncated first sentence every time. This name is also the live join onto the knowledge-galaxy map: read mind_knowledge topic "topic_map_method" and the current mind_topics rows for this account, and use goal_name (set on the one leaf node that matches this exact name) so the interest lights up in the right place. Before writing a new inferred_goal, check whether its topic already has a home in mind_topics — if not, grow the tree per that doc's rules (upsert by (user_id, slug), never touch the root row, never rename a slug, cap new nodes at 5 per cycle, only add a node for a topic with real recurring evidence, one leaf if it fits an existing hub, a short hub+leaf chain only if the field genuinely has that structure) rather than leaving every non-fitting interest stuck in Science/Tech/Business/Humanities by default. A goal that's gone quiet still counts as a goal and gets its own inferred_goal row even if a dormant_revival row already exists for the same notes — the two kinds answer different questions ("what are you working toward" vs. "what went quiet") and both can be true for the same thing at once. Write scope='user' calibration rows back to mind_knowledge. Insert everything via the Supabase MCP, superseding prior rows of each kind.
+
+Then run the field investigation (mind_knowledge topic "field_investigation_method") behind the "recommendation" kind, now labeled "Field Investigation Report" on the dashboard — this is the brain's own investigation, not a summary of what I captured. For every real lead this cycle surfaced (a stated interest, a recurring theme, an inferred_goal, a term implied but never defined in my own notes), investigate it the way a well-informed person would: learn what my notes don't already say — definitions, the field/branch something belongs to, the people who originated or shaped it. Filter before writing: skip anything already sitting in mind_knowledge_library for me, and skip textbook trivia that doesn't clear a real "worth knowing" bar — investigated-but-filtered material is simply not written anywhere, there is no low-confidence tier. Pick the shape per resource_research_method/field_investigation_method: a roadmap (metadata.path) for a bare stated interest in a whole field, a cited chart (metadata.chart) only when the numbers have a real source, terms with one-liners for a review/consolidation ask, or — new — metadata.concept = { term, definition, branch, philosophers: [{name, era, contribution}] (cap 2-4), related_concepts? } for a conceptual/theoretical term (ontology, epistemology, and similarly foundational terms in any field), naming which branch of the field it belongs to and who's responsible for it. Whichever shape you pick, the row's summary is a short title-level line, never a paragraph restating what the diagram/card already shows — see field_investigation_method's worked example before writing it. Persist every finding that survives the filter to BOTH mind_insights (kind='recommendation', this cycle's report, superseded like every other kind) AND mind_knowledge_library (upsert by (user_id, domain, title): update summary/metadata only if this cycle's version is a real improvement, else just bump cycle_count and last_reinforced_at, never delete) — domain should match the finding's hub name in mind_topics where one exists. mind_knowledge_library is the durable Knowledge Library the dashboard shows separately from this cycle's report; it must never be superseded or cleared, only added to.
 
 Then process the PARA-fun queue (para_fun_queue): first read all existing rows for this account. Leave still-valid pending rows untouched — do not duplicate or re-ask a question that's already waiting for an answer. Mark a row superseded if the note/data it was about has changed enough to invalidate it. Only after that, add new questions — including proposing a new capture if your processing surfaced something genuinely worth capturing. Build questions from the current open_loop/dormant_revival insights plus Inbox age, not new logic.
 
 Hard rules, no exceptions: (1) never insert directly into notes, tasks, or packets as part of this step — every proposal, including a new capture, is a para_fun_queue row requiring the user's tap before anything real is created; (2) cap total new rows added this cycle (pending + new) at 5-8, at most 2-3 of which are new_capture_proposals — do not flood the queue; (3) before proposing a new capture, check existing notes/tags for a near-duplicate and skip the proposal if one already covers it; (4) every assumed_answer must have non-empty source_refs explaining what data or reasoning it came from — an assumed answer with no traceable source is a bug, not a shortcut; (5) an invented question_type must still use the same row shape (question_text, options, assumed_answer, section, priority_rank) — there is no side channel for writing data outside this mechanism.
 
-Then re-emit mind_sections for "Visit Your Brain" (MIND_MODEL_BRIEF §4f, mind_knowledge topic "refinement_loop" — "Brain sections" rule): write the full section set this cycle produces (slug, title, accent, renderer, position, metadata), superseding the prior set rather than editing it in place. Ground every section in real data from this cycle — do not restate the app's own insight-kind/queue-type taxonomy as sections; include a section only when the data actually supports it (e.g. skip an interest feed with nothing real behind it). Renderer contract: insight_list -> metadata.insightKinds (mind_insights kind values, 'overview' allowed); queue/question -> metadata.questionTypes (omit for "all pending"); activity_digest/feed/reminder -> metadata.items: [{ text, url?, source_refs? }], self-contained prose so the client needs no further join. A "question" section answered via the queue mechanic (e.g. "research X deeper next cycle?") is a grant to act on next cycle.
-
-Write those feed/reminder/question sections as a BRIEFING, not a form (§4f-addendum). This is not PARA-fun wearing a different skin — a "queue" section is just a doorway to that grind tool; feed/reminder/question sections must read like an assistant who already read everything. Concretely: (a) group by real topic understanding, not by table — if several notes are actually about the same thing but share no tag or note_links row (e.g. five unconnected notes all really about Satoshi), write ONE grouped item whose source_refs cite all of them; (b) report specifics and end each actionable item in a real question with a real consequence ("Mr. X said he can do it in five days — log that task as done and clear the loop?"), where the yes/no maps to a real airlocked answer action: set_para, distill, create_task, create_capture, or link_notes (the grouping-confirmation action) — for grouping confirmations, put the note ids to link in the assumed_answer so a tap calls link_notes; (c) when one line genuinely isn't enough, say so ("this one's more involved — want me to walk you through the notes?") and put the note ids in source_refs so the app can expand the real note content on request, rather than forcing a false one-liner; (d) you may pair "nothing pressing right now" with something aligned to user_model's sense of what the user enjoys — but the app has NO calendar/time-of-day concept (tasks.due_date is a date, not a time), so never claim "you're free at 4"; the notice-slack-and-suggest pattern is fine, a literal clock time is not. HARD CAP: 700 words total across everything Visit Your Brain would narrate/display in one visit — count words across all sections' line/summary content and trim/consolidate BEFORE writing, not after.
+Then re-emit the "feed" mind_sections row that powers the Overview page's "Latest in your world" news strip (§4j; mind_knowledge topic "refinement_loop" — "Brain sections" rule, superseding language still applies even though "Visit Your Brain" itself has been removed): metadata.items: [{ text, url?, source_refs? }], sourced from real web research (same posture as the field investigation above), capped at 6 items, filtered to what's genuinely currently notable and against user_model so it resonates with this specific person. Supersede the prior feed row rather than editing it in place. Skip writing a feed section entirely when there's nothing real behind it — an empty ticker is worse than none. Other mind_sections renderer types (insight_list, queue, question, activity_digest, reminder) have no UI consumer anymore and should not be written.
 
 Finally, record the cycle: write one mind_cycle_runs row (started_at, completed_at, tokens_used = your own honest estimate of tokens spent this cycle, sections_written, insights_written, status = ok | partial | error, notes = free text on anything that failed). Record partial and failed cycles honestly — the dashboard surfaces them so I can tell whether the refresh actually did what it claimed (§4k).`
 }
@@ -762,20 +620,74 @@ function MiniBarChart({ chart }) {
   )
 }
 
+// Field investigation method's "concept" shape (mind_knowledge topic
+// "field_investigation_method"): a conceptual/theoretical term — definition, the branch
+// of the field it belongs to, and a compact philosopher lineage. Visual-first per that
+// doc: term + branch chip + one-line definition, then philosophers as a small connected
+// timeline (name/era/one clause), not a paragraph of intellectual history.
+function ConceptCard({ concept }) {
+  if (!concept?.term) return null
+  const philosophers = Array.isArray(concept.philosophers) ? concept.philosophers.slice(0, 4) : []
+  const related = Array.isArray(concept.related_concepts) ? concept.related_concepts.slice(0, 3) : []
+  return (
+    <div className="mt-3 rounded-lg border border-ink-700 bg-ink-900/60 p-4">
+      <div className="flex flex-wrap items-baseline gap-2">
+        <h3 className="font-serif text-lg font-light text-mist-100">{concept.term}</h3>
+        {concept.branch && (
+          <span className="rounded border border-violet-400/40 px-1.5 py-0.5 text-[11px] uppercase tracking-wide text-violet-300">
+            {concept.branch}
+          </span>
+        )}
+      </div>
+      {concept.definition && <p className="mt-1.5 text-sm leading-relaxed text-mist-300">{concept.definition}</p>}
+
+      {philosophers.length > 0 && (
+        <div className="mt-4 flex items-start gap-0">
+          {philosophers.map((p, i) => (
+            <div key={i} className="relative flex-1 px-2 text-center">
+              {i > 0 && <span className="absolute right-1/2 top-[5px] h-px w-full bg-ink-700" />}
+              <div className="relative mx-auto mb-1.5 h-2.5 w-2.5 rounded-full bg-violet-400/70" />
+              <p className="text-xs font-medium text-mist-100">{p.name}</p>
+              {p.era && <p className="text-[11px] text-mist-500">{p.era}</p>}
+              {p.contribution && <p className="mt-0.5 text-[11px] leading-snug text-mist-400">{p.contribution}</p>}
+            </div>
+          ))}
+        </div>
+      )}
+
+      {related.length > 0 && (
+        <div className="mt-3 flex flex-wrap gap-1.5">
+          {related.map((r, i) => (
+            <span key={i} className="rounded-full border border-ink-700 px-2 py-0.5 text-[11px] text-mist-400">{r}</span>
+          ))}
+        </div>
+      )}
+    </div>
+  )
+}
+
 // §4i: recommendations render as small visual cards, not prose. Falls back gracefully to
-// the plain expandable summary when a cycle wrote no structured metadata.
+// the plain expandable summary when a cycle wrote no structured metadata. Per
+// field_investigation_method's visual-first rule: when a diagram/card already carries the
+// meaning (a roadmap or a concept card), the prose summary is dropped entirely rather than
+// rendered as a redundant paragraph above it.
 function RecommendationCard({ insight }) {
   const [showSources, setShowSources] = useState(false)
   const md = insight.metadata || {}
   const hasPath = Array.isArray(md.path?.nodes) && md.path.nodes.length > 0
+  const hasConcept = !!md.concept?.term
+  const hasVisual = hasPath || hasConcept
   return (
     <div className="card border-t-2 border-gold-400/30 p-6">
-      <div className="flex items-start gap-2">
-        {md.icon && <span className="text-lg leading-none">{md.icon}</span>}
-        <p className="text-sm leading-relaxed text-mist-100">{insight.summary}</p>
-      </div>
+      {!hasVisual && (
+        <div className="flex items-start gap-2">
+          {md.icon && <span className="text-lg leading-none">{md.icon}</span>}
+          <p className="text-sm leading-relaxed text-mist-100">{insight.summary}</p>
+        </div>
+      )}
 
       {hasPath && <PathDiagram path={md.path} />}
+      {hasConcept && <ConceptCard concept={md.concept} />}
       {md.chart && <MiniBarChart chart={md.chart} />}
 
       {md.suggestion && (
@@ -1038,7 +950,7 @@ function OverviewTab({ data, loading, running, runStage, runNow, refreshPrompt, 
             <GoalArrowChart goals={data.byKind.inferred_goal} />
           </div>
 
-          <p className="label mb-4 mt-10 !text-gold-400">What you might do</p>
+          <p className="label mb-4 mt-10 !text-gold-400">Field Investigation Report</p>
           {recommendations.length > 0 ? (
             <div className="grid gap-6 md:grid-cols-2">
               {recommendations.map(insight => (
@@ -1047,7 +959,7 @@ function OverviewTab({ data, loading, running, runStage, runNow, refreshPrompt, 
             </div>
           ) : (
             <div className="card p-6">
-              <p className="text-sm text-mist-400">No recommendation researched yet.</p>
+              <p className="text-sm text-mist-400">Nothing investigated yet.</p>
             </div>
           )}
         </>
@@ -1056,15 +968,10 @@ function OverviewTab({ data, loading, running, runStage, runNow, refreshPrompt, 
   )
 }
 
-// §4d/§4e/§4f shared: the answer-picking + custom-text-input mechanic. Used by
-// ParaFunCard's card container and by Voice Flow / Visit Your Brain's immersive
-// container — only the container differs, per §4e's "reuse, don't reimplement" rule.
+// §4d: the answer-picking + custom-text-input mechanic for a PARA-fun queue item.
 // Keyed by item.id at the call site so its custom-text state resets cleanly between
-// questions. `onCommand`, when passed (Visit Your Brain only), lets typed universal
-// commands ("next"/"skip"/"back to brain") short-circuit before falling through to a
-// literal answer — omitted entirely for ParaFunCard so existing §4d behavior is
-// untouched.
-function AnswerControls({ item, onAnswer, submitting, dimmed, onCommand }) {
+// questions.
+function AnswerControls({ item, onAnswer, submitting }) {
   const [customText, setCustomText] = useState('')
   const [showCustom, setShowCustom] = useState(false)
 
@@ -1080,15 +987,6 @@ function AnswerControls({ item, onAnswer, submitting, dimmed, onCommand }) {
 
   function submitCustom() {
     if (!customText.trim()) return
-    if (onCommand) {
-      const cmd = matchUniversalCommand(customText)
-      if (cmd) {
-        onCommand(cmd)
-        setCustomText('')
-        setShowCustom(false)
-        return
-      }
-    }
     let value
     if (item.question_type === 'sort_inbox') return // no custom path for an exhaustive choice
     if (item.question_type === 'new_capture_proposal') value = { title: customText.trim(), para: 'inbox', content: null }
@@ -1099,7 +997,7 @@ function AnswerControls({ item, onAnswer, submitting, dimmed, onCommand }) {
   }
 
   return (
-    <div className={`transition-opacity duration-500 ${dimmed ? 'opacity-40' : 'opacity-100'}`}>
+    <div>
       {!showCustom ? (
         <div className="flex flex-wrap gap-3">
           {item.options.map((opt, i) => {
@@ -1128,7 +1026,7 @@ function AnswerControls({ item, onAnswer, submitting, dimmed, onCommand }) {
           <input
             className="input"
             autoFocus
-            placeholder={onCommand ? 'Write your own… or type "next" / "skip" / "back to brain"' : 'Write your own…'}
+            placeholder="Write your own…"
             value={customText}
             onChange={e => setCustomText(e.target.value)}
             onKeyDown={e => { if (e.key === 'Enter') submitCustom() }}
@@ -1180,124 +1078,9 @@ function ParaFunTab({ queue, loading, onAnswer, submitting }) {
   )
 }
 
-// §4f: a small always-visible command box for read-only insight sections, which have
-// no answer mechanic (and so no AnswerControls/"write my own" toggle) to hang typed
-// commands off of. Actionable sections get the same command path via AnswerControls'
-// onCommand instead — this is only for the other five.
-function CommandInput({ onCommand, placeholder }) {
-  const [text, setText] = useState('')
-  function submit() {
-    const cmd = matchUniversalCommand(text)
-    if (cmd) {
-      onCommand(cmd)
-      setText('')
-    }
-  }
-  return (
-    <div className="mt-6 flex justify-center gap-2">
-      <input
-        className="input max-w-xs !py-2 text-xs"
-        placeholder={placeholder}
-        value={text}
-        onChange={e => setText(e.target.value)}
-        onKeyDown={e => { if (e.key === 'Enter') submit() }}
-      />
-      <button onClick={submit} className="btn-secondary !px-3 !py-2 text-xs">Go</button>
-    </div>
-  )
-}
-
-// §4f step 2: the entry screen — a full-bleed particle field with the section nodes
-// floating over it. Nothing here is a list to scan top-to-bottom; it's a map to pick
-// a point on. Clicking a node is the deliberate "begin" tap for that section's voice.
-function BrainField({ sections, data, queue, lastUpdatedLabel, onSelectSection, fieldRef }) {
-  const entered = useMountTransition()
-  return (
-    <div className="relative flex min-h-[560px] flex-col items-center justify-center overflow-hidden rounded-2xl border border-ink-700 bg-ink-950 px-6 py-16">
-      <ParticleField ref={fieldRef} className="absolute inset-0 h-full w-full" />
-      <div className="pointer-events-none absolute inset-0 bg-gradient-to-b from-ink-950/50 via-transparent to-ink-950/80" />
-
-      <div
-        className={`relative z-10 flex flex-col items-center transition-all duration-700 ease-out ${entered ? 'translate-y-0 opacity-100' : 'translate-y-3 opacity-0'}`}
-      >
-        <p className="label mb-2 !text-emerald-300">Your brain</p>
-        <p className="mb-10 text-sm text-mist-400">last updated {lastUpdatedLabel}</p>
-
-        <div className="grid max-w-3xl grid-cols-2 gap-4 sm:grid-cols-3">
-          {sections.filter(def => !isFeedRenderer(def)).map(def => {
-            const items = sectionItems(def, data, queue)
-            const accentHex = ACCENT_HEX[def.accent] || ACCENT_HEX.mist
-            return (
-              <button
-                key={def.id}
-                onClick={() => onSelectSection(def)}
-                className="group flex flex-col items-center gap-2 rounded-2xl border border-ink-600/80 bg-ink-900/60 px-4 py-6 text-center backdrop-blur transition hover:-translate-y-0.5"
-                style={{ borderColor: 'var(--section-border, rgba(255,255,255,0.08))' }}
-                onMouseEnter={e => { e.currentTarget.style.setProperty('--section-border', `${accentHex}80`) }}
-                onMouseLeave={e => { e.currentTarget.style.setProperty('--section-border', 'rgba(255,255,255,0.08)') }}
-              >
-                <span className="h-2.5 w-2.5 rounded-full" style={{ background: accentHex, boxShadow: `0 0 12px ${accentHex}` }} />
-                <span className="text-sm text-mist-100 group-hover:text-white">{def.title}</span>
-                <span className="text-xs text-mist-500">{items.length > 0 ? items.length : 'nothing yet'}</span>
-              </button>
-            )
-          })}
-        </div>
-      </div>
-    </div>
-  )
-}
-
-// §4f-addendum "know when one line isn't enough": a feed/reminder item names the notes
-// it's about in source_refs; on request we fetch the REAL note content (existing
-// /api/notes/[id] path) and show it attributed per note — reading the source, not a
-// paraphrase standing in for it.
-function NoteRefsReader({ refs }) {
-  const noteRefs = (refs || []).filter(r => r.type === 'note' && r.id)
-  const [open, setOpen] = useState(false)
-  const [notes, setNotes] = useState(null)
-  const [loading, setLoading] = useState(false)
-  if (noteRefs.length === 0) return null
-
-  async function reveal() {
-    if (open) { setOpen(false); return }
-    setOpen(true)
-    if (notes) return
-    setLoading(true)
-    const fetched = await Promise.all(
-      noteRefs.map(r => fetch(`/api/notes/${r.id}`).then(res => (res.ok ? res.json() : null)).catch(() => null))
-    )
-    setNotes(fetched)
-    setLoading(false)
-  }
-
-  return (
-    <div className="mt-3 text-left">
-      <button onClick={reveal} className="text-xs text-emerald-300 hover:text-emerald-200">
-        {open ? 'Hide notes' : noteRefs.length > 1 ? `Walk me through the ${noteRefs.length} notes` : 'Read the note'}
-      </button>
-      {open && (
-        <div className="mt-2 space-y-3">
-          {loading && <p className="text-xs text-mist-500">Reading…</p>}
-          {notes?.map((n, i) =>
-            n ? (
-              <div key={n.id} className="rounded-lg border border-ink-700 bg-ink-900/50 p-3">
-                <p className="text-xs font-medium text-mist-100">{n.title}</p>
-                <p className="mt-1 whitespace-pre-wrap text-xs text-mist-400">{n.executive_summary || n.content || '(empty note)'}</p>
-              </div>
-            ) : (
-              <p key={i} className="text-xs text-mist-500">A note couldn't be loaded.</p>
-            )
-          )}
-        </div>
-      )}
-    </div>
-  )
-}
-
 // §4j: "Latest in your world" — a breaking-news-style strip pinned to the top of the
-// Overview page (not inside Visit Your Brain). Single line, always scrolling, cycle-
-// authored items each linking a real source URL. Pauses on hover.
+// Overview page. Single line, always scrolling, cycle-authored items each linking a
+// real source URL. Pauses on hover.
 function NewsStrip({ items }) {
   const [paused, setPaused] = useState(false)
   if (!items?.length) return null
@@ -1349,107 +1132,112 @@ function NewsStrip({ items }) {
   )
 }
 
-// §4f step 2, inside a section: read-only insight kinds get a calm visualizer + voice
-// readout with Next/Back to brain; actionable queue kinds (para_fun_queue) reuse the
-// exact §4d/§4e mechanic — same WaveVisualizer, same AnswerControls, same onAnswer.
-function BrainSection({ def, items, onAnswer, onExit, speak, cancel, speaking, muted, toggleMute, submitting }) {
-  const entered = useMountTransition()
-  const [index, setIndex] = useState(0)
-  const isQueue = isQueueRenderer(def)
-  const clampedIndex = items.length ? Math.min(index, items.length - 1) : 0
-  const current = items[clampedIndex]
+// Knowledge Library (mind_knowledge topic "field_investigation_method"): the durable,
+// cumulative archive of everything the field investigation has learned across every
+// cycle — distinct from the current cycle's Field Investigation Report, which is
+// superseded each run. Grouped by domain, one accent per domain, visual-first per entry
+// type — the same rendered shapes as the report (roadmap/concept/chart), just read from
+// mind_knowledge_library instead of this cycle's mind_insights rows.
+const LIBRARY_ACCENTS = ['#f0d9a3', '#5eead4', '#b7a6f7', '#f0a3c4', '#96befa', '#a3e0a0']
+const ENTRY_TYPE_LABEL = { concept: 'Concept', roadmap: 'Roadmap', fact: 'Fact', method: 'Method' }
 
-  function goNext() {
-    if (items.length < 2) return
-    const nextIndex = (clampedIndex + 1) % items.length
-    setIndex(nextIndex)
-    speak(sectionItemText(def, items[nextIndex]))
-  }
-
-  function handleBackToBrain() {
-    cancel()
-    onExit()
-  }
-
-  function handleAnswer(id, payload) {
-    onAnswer(id, payload)
-    if (items.length > 1) goNext()
-    else handleBackToBrain()
-  }
-
-  function handleCommand(cmd) {
-    if (cmd === 'next') goNext()
-    else if (cmd === 'skip') {
-      if (isQueue && current) handleAnswer(current.id, { action: 'skip' })
-      else goNext()
-    } else if (cmd === 'home') handleBackToBrain()
-  }
-
-  const color = current ? sectionItemColor(def, current) : (ACCENT_HEX[def.accent] || ACCENT_HEX.mist)
-  const caption = !current
-    ? `No ${def.title.toLowerCase()} recorded yet.`
-    : isQueue
-      ? current.question_text
-      : def.title
+function LibraryEntryCard({ entry, accent }) {
+  const [showSources, setShowSources] = useState(false)
+  const md = entry.metadata || {}
+  const hasPath = Array.isArray(md.path?.nodes) && md.path.nodes.length > 0
+  const hasConcept = !!md.concept?.term
+  const hasVisual = hasPath || hasConcept
 
   return (
-    <div className={`flex flex-col items-center transition-all duration-500 ease-out ${entered ? 'scale-100 opacity-100' : 'scale-95 opacity-0'}`}>
-      <div className="relative w-full overflow-hidden rounded-2xl border border-ink-700 bg-ink-950">
-        <WaveVisualizer color={color} speaking={speaking} className="h-[300px] w-full sm:h-[380px]" />
+    <div className="card p-5" style={{ borderTop: `2px solid ${accent}66` }}>
+      <div className="flex items-center justify-between gap-2">
+        <span className="text-[11px] font-medium uppercase tracking-wide" style={{ color: accent }}>
+          {ENTRY_TYPE_LABEL[entry.entry_type] || entry.entry_type}
+        </span>
+        {entry.cycle_count > 1 && (
+          <span className="text-[11px] text-mist-500">reinforced {entry.cycle_count}×</span>
+        )}
+      </div>
 
-        <div className="pointer-events-none absolute inset-0 flex items-center justify-center px-8 sm:px-16">
-          <p className="max-w-2xl text-center font-serif text-2xl font-light text-mist-100 [text-shadow:0_2px_24px_rgba(0,0,0,0.7)] sm:text-3xl">
-            {caption}
-          </p>
-        </div>
+      {!hasVisual && <p className="mt-2 text-sm leading-relaxed text-mist-100">{entry.summary}</p>}
+      {hasPath && <PathDiagram path={md.path} />}
+      {hasConcept && <ConceptCard concept={md.concept} />}
+      {md.chart && <MiniBarChart chart={md.chart} />}
 
-        <p className="absolute left-5 top-5 text-[13px] uppercase tracking-[0.2em] text-mist-400">
-          {def.title}{items.length > 1 ? ` · ${clampedIndex + 1}/${items.length}` : ''}
+      <div className="mt-3 flex items-center justify-between">
+        <p className="text-[11px] text-mist-500">
+          known since {new Date(entry.first_learned_at).toLocaleDateString()}
         </p>
-
-        <button
-          onClick={() => (speaking ? cancel() : toggleMute())}
-          className="absolute right-5 top-5 rounded-full border border-ink-600/80 bg-ink-950/60 px-3 py-1.5 text-xs text-mist-300 backdrop-blur transition hover:border-mist-300/50 hover:text-white"
-        >
-          {speaking ? 'Skip narration' : muted ? 'Unmute voice' : 'Mute voice'}
-        </button>
+        {entry.source_refs?.length > 0 && (
+          <button onClick={() => setShowSources(s => !s)} className="text-[11px] text-mist-500 hover:text-mist-300">
+            {showSources ? 'Hide sources' : `Sources (${entry.source_refs.length})`}
+          </button>
+        )}
       </div>
+      {showSources && <SourceRefs refs={entry.source_refs} />}
+    </div>
+  )
+}
 
-      <div className="mt-8 w-full max-w-xl">
-        {!current ? null : isQueue ? (
-          <AnswerControls
-            key={current.id}
-            item={current}
-            onAnswer={handleAnswer}
-            submitting={submitting}
-            dimmed={speaking}
-            onCommand={handleCommand}
-          />
-        ) : (
-          <div className={`transition-opacity duration-500 ${speaking ? 'opacity-40' : 'opacity-100'}`}>
-            <p className="text-sm leading-relaxed text-mist-100">{current.summary}</p>
-            <NoteRefsReader refs={current.source_refs} />
+function KnowledgeLibraryTab() {
+  const [entries, setEntries] = useState(null)
+  const [loading, setLoading] = useState(true)
+
+  useEffect(() => {
+    fetch('/api/mind/library')
+      .then(r => r.json())
+      .then(({ entries }) => setEntries(entries || []))
+      .catch(() => setEntries([]))
+      .finally(() => setLoading(false))
+  }, [])
+
+  if (loading) {
+    return (
+      <div className="flex min-h-[200px] items-center justify-center">
+        <p className="text-mist-400">Reading the library…</p>
+      </div>
+    )
+  }
+
+  if (!entries || entries.length === 0) {
+    return (
+      <div className="card p-6">
+        <p className="text-sm text-mist-400">Nothing learned yet — this fills in as refresh cycles run their field investigation.</p>
+      </div>
+    )
+  }
+
+  const byDomain = new Map()
+  for (const e of entries) {
+    if (!byDomain.has(e.domain)) byDomain.set(e.domain, [])
+    byDomain.get(e.domain).push(e)
+  }
+
+  return (
+    <div className="space-y-10">
+      {[...byDomain.entries()].map(([domain, items], i) => {
+        const accent = LIBRARY_ACCENTS[i % LIBRARY_ACCENTS.length]
+        return (
+          <div key={domain}>
+            <div className="mb-4 flex items-center gap-2">
+              <span className="h-2 w-2 rounded-full" style={{ backgroundColor: accent }} />
+              <p className="label !text-mist-300">{domain}</p>
+              <span className="text-[11px] text-mist-500">{items.length}</span>
+            </div>
+            <div className="grid gap-5 md:grid-cols-2">
+              {items.map(entry => (
+                <LibraryEntryCard key={entry.id} entry={entry} accent={accent} />
+              ))}
+            </div>
           </div>
-        )}
-        {current && <SourceRefs refs={current.source_refs} />}
-      </div>
-
-      <div className="mt-6 flex justify-center gap-3">
-        <button onClick={handleBackToBrain} className="btn-secondary">← Back to brain</button>
-        {items.length > 1 && (
-          <button onClick={goNext} className="btn-ghost">Next →</button>
-        )}
-      </div>
-
-      {!isQueue && <CommandInput onCommand={handleCommand} placeholder='Type "next" or "back to brain"' />}
+        )
+      })}
     </div>
   )
 }
 
 export default function Mind({ user }) {
   const [tab, setTab] = useState('overview')
-  const [mode, setMode] = useState('brain') // §4f: 'brain' (default, the destination) | 'list' (§1 escape hatch)
-  const [activeSectionId, setActiveSectionId] = useState(null)
   const [data, setData] = useState(null)
   const [loading, setLoading] = useState(true)
   const [running, setRunning] = useState(false)
@@ -1457,19 +1245,17 @@ export default function Mind({ user }) {
   const [queue, setQueue] = useState([])
   const [queueLoading, setQueueLoading] = useState(true)
   const [sections, setSections] = useState([])
-  const [sectionsLoading, setSectionsLoading] = useState(true)
   const [topics, setTopics] = useState([])
   const [cycles, setCycles] = useState(null)
   const [stats, setStats] = useState(null)
   const [submitting, setSubmitting] = useState(false)
+  const [onboarding, setOnboarding] = useState(null) // null = not yet checked; {onboarded:bool} once known
   const refreshPrompt = useMemo(() => buildRefreshPrompt(user), [user])
-  // §4j: the feed section's items feed the Overview-page news strip (not a brain node).
+  // §4j: the feed section's items feed the Overview page's news strip.
   const feedItems = useMemo(() => {
     const feed = sections.find(isFeedRenderer)
-    return feed ? sectionItems(feed, data, queue) : []
-  }, [sections, data, queue])
-  const fieldRef = useRef(null)
-  const voice = useBrainVoice()
+    return feed ? sectionItems(feed) : []
+  }, [sections])
 
   function load() {
     setLoading(true)
@@ -1491,16 +1277,13 @@ export default function Mind({ user }) {
       })
   }
 
-  // §4f: the section registry a cycle wrote (or the server's minimal fallback if none
-  // has run yet) — fetched once alongside insights/queue, not derived from them.
+  // The section registry a cycle wrote (or the server's minimal fallback if none has
+  // run yet) — only the "feed" renderer is consumed today, by the news strip below.
   function loadSections() {
-    setSectionsLoading(true)
     return fetch('/api/mind/sections')
       .then(r => r.json())
-      .then(({ sections: rows }) => {
-        setSections(rows)
-        setSectionsLoading(false)
-      })
+      .then(({ sections: rows }) => setSections(rows))
+      .catch(() => setSections([]))
   }
 
   // The knowledge-galaxy tree a cycle wrote (or the server's fallback seed if none
@@ -1528,6 +1311,13 @@ export default function Mind({ user }) {
       .catch(() => setStats(null))
   }
 
+  function loadOnboarding() {
+    return fetch('/api/onboarding/status')
+      .then(r => r.json())
+      .then(setOnboarding)
+      .catch(() => setOnboarding({ onboarded: true })) // fail open — never trap a real user behind a broken check
+  }
+
   useEffect(() => {
     load()
     loadQueue()
@@ -1535,6 +1325,7 @@ export default function Mind({ user }) {
     loadTopics()
     loadCycles()
     loadStats()
+    loadOnboarding()
   }, [])
 
   async function runNow() {
@@ -1573,39 +1364,25 @@ export default function Mind({ user }) {
     }
   }
 
-  const brainUpdatedAt = useMemo(() => {
-    const dates = []
-    if (data?.lastUpdated) dates.push(new Date(data.lastUpdated).getTime())
-    for (const q of queue) if (q.created_at) dates.push(new Date(q.created_at).getTime())
-    return dates.length ? new Date(Math.max(...dates)) : null
-  }, [data, queue])
-  const brainUpdatedLabel = relativeTimeLabel(brainUpdatedAt)
-
-  const activeSectionDef = sections.find(d => d.id === activeSectionId) || null
-  const activeSectionItemsList = activeSectionDef ? sectionItems(activeSectionDef, data, queue) : []
-
-  function goToListView() {
-    voice.cancel()
-    setActiveSectionId(null)
-    setMode('list')
+  if (onboarding === null) {
+    return (
+      <Layout user={user}>
+        <div className="flex min-h-[70vh] items-center justify-center">
+          <p className="text-mist-400">Arriving…</p>
+        </div>
+      </Layout>
+    )
   }
 
-  function selectSection(def) {
-    const items = sectionItems(def, data, queue)
-    setActiveSectionId(def.id)
-    fieldRef.current?.boost?.()
-    const first = items[0]
-    voice.speak(first ? sectionItemText(def, first) : `No ${def.title.toLowerCase()} recorded yet.`)
+  if (!onboarding.onboarded) {
+    return (
+      <Layout user={user}>
+        <Onboarding onComplete={() => { setOnboarding({ onboarded: true }); load(); loadQueue(); loadSections(); loadTopics(); loadCycles(); loadStats() }} />
+      </Layout>
+    )
   }
 
-  function exitToField() {
-    setActiveSectionId(null)
-  }
-
-  const headerTitle =
-    mode === 'list'
-      ? (tab === 'overview' ? 'Overview' : 'PARA co-sorting')
-      : (activeSectionDef ? activeSectionDef.title : 'Your Brain')
+  const headerTitle = tab === 'overview' ? 'Overview' : tab === 'library' ? 'Knowledge library' : 'PARA co-sorting'
 
   return (
     <Layout user={user}>
@@ -1617,66 +1394,33 @@ export default function Mind({ user }) {
           <h1 className="font-serif text-4xl font-light text-mist-100">{headerTitle}</h1>
         </div>
         <div className="flex flex-wrap gap-2">
-          {mode === 'list' && (
-            <>
-              <button
-                onClick={() => setTab('overview')}
-                className={`chip capitalize ${tab === 'overview' ? 'border-emerald-400/50 text-emerald-300' : ''}`}
-              >
-                Overview
-              </button>
-              <button
-                onClick={() => setTab('parafun')}
-                className={`chip capitalize ${tab === 'parafun' ? 'border-emerald-400/50 text-emerald-300' : ''}`}
-              >
-                PARA co-sorting{queue.length > 0 ? ` (${queue.length})` : ''}
-              </button>
-            </>
-          )}
-          {mode === 'brain' && (
-            <button
-              onClick={goToListView}
-              className="chip border-emerald-400/50 text-emerald-300"
-            >
-              List view
-            </button>
-          )}
+          <button
+            onClick={() => setTab('overview')}
+            className={`chip capitalize ${tab === 'overview' ? 'border-emerald-400/50 text-emerald-300' : ''}`}
+          >
+            Overview
+          </button>
+          <button
+            onClick={() => setTab('parafun')}
+            className={`chip capitalize ${tab === 'parafun' ? 'border-emerald-400/50 text-emerald-300' : ''}`}
+          >
+            PARA co-sorting{queue.length > 0 ? ` (${queue.length})` : ''}
+          </button>
+          <button
+            onClick={() => setTab('library')}
+            className={`chip capitalize ${tab === 'library' ? 'border-emerald-400/50 text-emerald-300' : ''}`}
+          >
+            Knowledge library
+          </button>
         </div>
       </div>
 
-      {mode === 'list' ? (
-        tab === 'overview' ? (
-          <OverviewTab data={data} loading={loading} running={running} runStage={runStage} runNow={runNow} refreshPrompt={refreshPrompt} cycle={cycles} feedItems={feedItems} stats={stats} topics={topics} />
-        ) : (
-          <ParaFunTab queue={queue} loading={queueLoading} onAnswer={answerQueue} submitting={submitting} />
-        )
-      ) : loading || queueLoading || sectionsLoading ? (
-        <div className="flex min-h-[400px] items-center justify-center rounded-2xl border border-ink-700 bg-ink-950">
-          <p className="text-mist-400">Arriving…</p>
-        </div>
-      ) : activeSectionDef ? (
-        <BrainSection
-          key={activeSectionDef.id}
-          def={activeSectionDef}
-          items={activeSectionItemsList}
-          onAnswer={answerQueue}
-          onExit={exitToField}
-          speak={voice.speak}
-          cancel={voice.cancel}
-          speaking={voice.speaking}
-          muted={voice.muted}
-          toggleMute={voice.toggleMute}
-          submitting={submitting}
-        />
+      {tab === 'overview' ? (
+        <OverviewTab data={data} loading={loading} running={running} runStage={runStage} runNow={runNow} refreshPrompt={refreshPrompt} cycle={cycles} feedItems={feedItems} stats={stats} topics={topics} />
+      ) : tab === 'library' ? (
+        <KnowledgeLibraryTab />
       ) : (
-        <BrainField
-          sections={sections}
-          data={data}
-          queue={queue}
-          lastUpdatedLabel={brainUpdatedLabel}
-          onSelectSection={selectSection}
-          fieldRef={fieldRef}
-        />
+        <ParaFunTab queue={queue} loading={queueLoading} onAnswer={answerQueue} submitting={submitting} />
       )}
     </Layout>
   )

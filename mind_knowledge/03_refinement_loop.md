@@ -36,15 +36,16 @@ brief is its entire memory of how to do this job. Treat it as a RAG store: retri
 Before writing, check the other kinds' drafts for overlap and cut the duplicate from the lower-priority
 section (overview wins stats, user_model wins patterns, recommendation wins resources).
 
-## Brain sections — every cycle re-emits the section set (MIND_MODEL_BRIEF §4f)
+## mind_sections — feed only now (MIND_MODEL_BRIEF §4e's REMOVED note)
 
-The "Visit Your Brain" field renders `mind_sections`, not a fixed taxonomy. Each cycle ends by writing
-the full section set for this cycle (superseding the prior set): which sections exist, titles, order,
-renderer, and metadata. Ground every section in real data — activity_log events, current insights,
-detected interests (researched feeds with URLs), permission questions, reminders. Include a section
-only when the data supports it; an interest feed with nothing real behind it is worse than its absence.
-Answered permission questions from the prior cycle are grants: act on them this cycle. Role separation
-above applies across sections too.
+"Visit Your Brain," the feature `mind_sections` was originally built to feed, has been removed
+completely (not just demoted) — the `insight_list`/`queue`/`question`/`activity_digest`/`reminder`
+renderer types have no UI consumer anymore. The only renderer still worth writing each cycle is `feed`,
+which powers the Overview page's "Latest in your world" news strip (§4j): real researched articles for a
+detected interest, capped at 6, filtered against `user_model` so it resonates with this specific person.
+Supersede the prior `feed` row rather than editing in place; skip it entirely when there's nothing real
+behind it — an empty ticker is worse than its absence. Do not write the other renderer types — they would
+just be dead writes with no display surface.
 
 ## Rules
 
@@ -63,3 +64,6 @@ above applies across sections too.
 - 2026-07-13: initial seed (researched and written via Cowork session; sources embedded per-doc).
 - 2026-07-13: added role-separation rule after first live cycle produced a user_model that duplicated
   the overview and no recommendation row.
+- 2026-07-17: "Visit Your Brain" removed completely (user request); rewrote "Brain sections" to
+  "mind_sections — feed only now" since insight_list/queue/question/activity_digest/reminder lost their
+  only UI consumer. Only write `feed`-renderer sections going forward.

@@ -298,6 +298,20 @@ pending item in priority order.
 
 ## 4e. "Voice Flow" — third tab on `/mind`, same queue, immersive presentation
 
+**REMOVED (2026-07-17).** This section, §4f, §4f addendum, and §4m describe the "Visit Your Brain"
+immersive experience (particle field entry, per-section wave-visualizer voice readout) and its planned
+onboarding evolution. The user asked for it to be removed completely, not just demoted from the default
+landing — `mode`/`activeSectionId` state, `BrainField`, `BrainSection`, `useBrainVoice`,
+`matchUniversalCommand`, `CommandInput`, `NoteRefsReader`, and the `ParticleField`/`WaveVisualizer`
+components are gone from `pages/mind.js` (the latter two component files deleted outright, no other
+importers). `/mind` is now a plain two-state page: a tab bar (Overview / PARA co-sorting / Knowledge
+library) and the tab content — no `mode` toggle. `mind_sections`' only surviving UI consumer is the
+`feed` renderer, which still powers the Overview page's "Latest in your world" news strip (§4j) — that
+part is unaffected and still cycle-written. The `queue`/`question`/`insight_list`/`activity_digest`/
+`reminder` renderer types have no UI consumer anymore; the refresh prompt no longer asks for them.
+Left below as a historical record of what was built and why, per this repo's own "supersede, don't
+delete" posture — not a spec to build against.
+
 A third tab alongside Overview and "PARA, made fun" (§4d) — no new backend at all. It reads the exact same
 `para_fun_queue` via the existing `GET /api/mind/queue`, and answers through the exact same
 `POST /api/mind/queue/[id]/answer` — this is purely a different frontend over data that already works.
@@ -569,6 +583,99 @@ The fuller journey, for whenever this gets picked up:
 5. **Interaction, unchanged from what's already built.** Click a region → voice narrates → current line
    shown as text in the middle → pauses exactly where an answer is needed. Same mechanic as §4e/§4f, applied
    to real content instead of onboarding once step 4 is reached.
+
+## 4n. Field Investigation Report + Knowledge Library — the brain investigates, not just summarizes
+
+Correction from the user: `recommendation`/"What You Might Do" (§4b) undersold what this kind should be.
+It isn't "here's what to do with what you captured" — it's the brain running its **own investigation**
+each cycle: taking notes/tags/inferred goals as leads, learning things the user never wrote down
+(definitions, a term's field/branch, who originated it, how it connects to adjacent concepts), filtering
+out what doesn't clear a real usefulness bar, and — new — remembering all of it permanently, not just for
+the current cycle. Full method in `mind_knowledge/06_field_investigation_method.md` (seeded as topic
+`field_investigation_method`); read alongside `01_learning_path_method.md` and
+`02_resource_research_method.md`, which it extends rather than replaces.
+
+**Rename, not a new kind.** Still `mind_insights.kind = 'recommendation'`, still governed by
+`03_refinement_loop.md`'s role-separation rule — only the dashboard label and the depth of what gets
+written into it change. The section header on `/mind` reads "Field Investigation Report."
+
+**New shape: `metadata.concept`.** §4i gave `recommendation` two renderable shapes (`path`, `chart`).
+Add a third for conceptual/theoretical terms the investigation surfaces (ontology, epistemology, and
+similarly foundational terms in any field, not philosophy specifically):
+`{ term, definition, branch, philosophers: [{ name, era, contribution }] (cap 2-4), related_concepts? }`.
+Renders as `ConceptCard` (`pages/mind.js`) — term, a branch chip, a one/two-sentence definition, and the
+philosophers as a small connected timeline, not a paragraph of intellectual history.
+
+**Visual-first, harder rule than §4i's original phrasing.** When a shape (`path` or `concept`) is
+present, the row's plain-text `summary` is dropped from the render entirely — `RecommendationCard` only
+shows it when there's no diagram/card to carry the meaning. This was a direct correction: a roadmap
+rendered alongside a paragraph that just re-narrated the roadmap's own sequence in prose, which the user
+called out as literally useless once the diagram is on screen. The cycle-side rule (write a short
+title-level `summary`, never a restatement) lives in `field_investigation_method.md`; the client-side
+rule (don't render it at all when redundant) is defense-in-depth for older rows that predate that
+guidance.
+
+**New table, additive** (`migrations/015_knowledge_library.sql`): **`mind_knowledge_library`** —
+`user_id`, `domain`, `entry_type` (`concept|roadmap|fact|method`), `title`, `summary`, `metadata` (same
+shapes as `recommendation`'s), `source_refs`, `first_learned_at`, `last_reinforced_at`, `cycle_count`,
+unique on `(user_id, domain, title)`. Unlike every other kind in this system, this table is never
+superseded or cleared — a cycle re-encountering something already known bumps `cycle_count`/
+`last_reinforced_at` in place. `domain` should match the finding's hub name in `mind_topics` where one
+exists, so the library groups the same way the knowledge galaxy does.
+
+**New dashboard section: Knowledge Library.** A third tab on `/mind` alongside Overview and PARA
+co-sorting (`GET /api/mind/library`, `KnowledgeLibraryTab` in `pages/mind.js`) — the cumulative archive of
+everything ever learned, grouped by domain, one accent color per domain, each entry rendered with the
+same visual components (`PathDiagram`/`ConceptCard`/`MiniBarChart`) as the current cycle's report. This is
+what makes the investigation durable rather than something the user only sees once before the next
+cycle's supersede wipes it from view.
+
+**Landing correction, superseded same day.** First pass: made Overview the default instead of "Visit Your
+Brain," keeping the immersive mode reachable via a "Visit brain" chip. Second correction, same session:
+remove "Visit Your Brain" completely, not just demote it — see §4e's REMOVED note. `/mind` now always
+opens on Overview; there is no `mode` toggle and no way to enter an immersive field at all.
+
+## 4o. First-time onboarding on `/mind`
+
+New migration (`016_onboarding.sql`, additive): `users` gains `display_name`, `age`, `persona`,
+`onboarded_at` (nullable — NULL is the gate: it means this account has never completed
+onboarding). A new `onboarding_imports` table (`user_id`, `source_type`, `raw_text`,
+`char_count`, `processed`, `processed_at`) holds up to 5 pasted blocks of pre-existing
+material the user brings in — old AI chat transcripts, documents, kanban boards, journals,
+calendar exports — stored as plain text in Postgres per §1's "no local storage anywhere"
+rule; nothing is written to browser storage or a file, and "processed" only flips to true
+once a refresh cycle has actually read it (`mind_knowledge` topic
+`onboarding_import_method`, `07_onboarding_import_method.md`). Existing accounts were
+grandfathered (`onboarded_at = created_at`) when the migration ran, so nobody already using
+the app is unexpectedly dropped into onboarding.
+
+**Gate.** `/mind` calls `GET /api/onboarding/status` on mount; while `onboarded` is false it
+renders `components/Onboarding.js` instead of the normal Overview/PARA co-sorting/Knowledge
+library tabs and the "Latest in your world" strip — nothing else on the page shows during
+onboarding, per explicit correction from the user.
+
+**Flow, one screen at a time, over a persistent eclipse-ring backdrop**
+(`components/EclipseAnimation.js` — a glowing cyan ring on black with two asymmetric flare
+points, matching a reference image the user supplied, pulsing continuously and briefly
+brightening/speeding on "Start"): hello + "press start to initiate your second brain" →
+name → age → "it's empty in here — what best describes you?" (a persona dropdown: tech-savvy,
+creative, student, business, researcher, "just getting organized," or a custom "Other") →
+paste up to 5 sources. Each paste slot **folds into a compact chip once it crosses ~400
+characters** (`onPaste`/`onBlur` in `ImportSlot`) — the same collapsed-attachment feel Claude
+uses for a large paste — so a long transcript never renders raw in the DOM and the page stays
+fast. `POST /api/onboarding/complete` writes the profile fields, sets `onboarded_at`, and
+inserts one `onboarding_imports` row per non-empty paste; the client then refetches
+insights/queue/sections/topics/cycles/stats and the normal tabs take over.
+
+**Processing is deferred to the next refresh cycle, not done at submit time.** Per
+`07_onboarding_import_method.md`: each unprocessed import is read as a *lead*, mined for
+recurring topics (→ `inferred_goal`/`mind_topics`), working-style signals (→ `user_model`,
+cited via a `source_refs` stat entry since there's no note/task id to point at), and concrete
+open threads worth a `new_capture_proposal` — filtered harder than the user's own notes,
+since a pasted AI chat transcript carries the assistant's own words and dead ends alongside
+real signal. Nothing is auto-created; the same `para_fun_queue` airlock from §4d still gates
+every write. `buildRefreshPrompt()` in `pages/mind.js` now checks for unprocessed imports as
+its very first step, before the rest of the cycle.
 
 ## 5. Push notifications — DEFERRED for now
 
