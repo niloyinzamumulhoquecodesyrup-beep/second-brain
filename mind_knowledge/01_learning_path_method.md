@@ -81,3 +81,22 @@ Pick entry point from estimated prior knowledge per cluster (00_meta_map Tier 2)
 from the activation-energy profile (frequent abandonment → smaller nodes, one-action starts — this is
 also the ADHD rule from §1 of the brief: surface exactly one next node, collapse the rest). Give the
 path an overall suggested timeline — a time-box increases discipline and prevents overcommitment.
+
+## Step 7 — Advance, don't reset, when a prior recommendation already covered this
+
+Before building a path/terms/diagram for a topic, check whether an earlier cycle already wrote a
+`recommendation` for it (same inferred_goal, same note/topic). If one exists, look for real engagement
+evidence *since* that cycle — a distilled note, a new capture, a completed task, or activity_log entries
+that actually use or reference the earlier path's nodes/terms (e.g. a note that engages with "action
+potential" after a node's practice asked the user to explain it). The recommendation having been written
+is not evidence the user engaged with it — only their own subsequent data is, same standard as
+00_meta_map's "never overreach beyond what the data supports."
+
+- **Evidence of engagement found**: don't rebuild from the same starting point. Collapse whatever's
+  evidently done into at most a one-line recap (or drop it entirely) and extend forward with the next
+  tier of depth for that field — the concepts/terms that naturally follow, sequenced the same
+  established-roadmap-first way as Step 2, just one level deeper. This is 00_meta_map Tier 2's
+  "prior-knowledge estimate per cluster" updating in response to real data, not a guess or a schedule.
+- **No such evidence**: don't advance. Reissue at the same depth as before. Time passing, or the old
+  recommendation merely sitting there unactioned, is not progress — advancing anyway would be inventing
+  data the user's second brain doesn't actually contain.

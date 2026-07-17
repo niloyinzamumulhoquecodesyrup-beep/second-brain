@@ -74,6 +74,31 @@ function isFeedRenderer(def) {
   return def.renderer === 'feed'
 }
 
+// News-strip items carry no domain field (they're cycle-authored prose, not tied to a
+// mind_taxonomy row), so the ticker infers one from the summary text via keyword match,
+// keyed to the same science/technology/business/humanities clusters + colors as the
+// knowledge galaxy (components/KnowledgeGalaxy.js CLUSTER_RGB) for a consistent palette.
+const NEWS_DOMAIN_HEX = {
+  science: '#6ee796',
+  technology: '#60bef9',
+  business: '#fb7192',
+  humanities: '#c091fc'
+}
+const NEWS_DOMAIN_KEYWORDS = {
+  science: ['brain', 'neuro', 'protein', 'cortex', 'biology', 'physics', 'chemistry', 'gene', 'cell', 'species', 'climate', 'quantum', 'cosmic', 'space', 'astronom', 'medicine', 'disease', 'vaccine', 'clinical', 'psycholog', 'cognit', 'evolution', 'ecolog', 'memory', 'decision', 'alzheimer'],
+  technology: ['artificial intelligence', ' ai ', 'software', 'algorithm', 'robot', 'computer', 'chip', ' app ', 'machine learning', 'internet', 'startup app', 'llm', 'automation'],
+  business: ['market', 'startup', 'finance', 'econom', 'stock', 'investment', 'revenue', 'company', 'ecommerce', 'trade', 'ipo'],
+  humanities: ['philosoph', 'history', 'literature', 'ethic', 'politic', 'culture', 'language', ' art ', 'linguistic', 'society', 'religion']
+}
+function classifyNewsDomain(text) {
+  if (!text) return null
+  const lower = ` ${text.toLowerCase()} `
+  for (const [domain, words] of Object.entries(NEWS_DOMAIN_KEYWORDS)) {
+    if (words.some(w => lower.includes(w))) return domain
+  }
+  return null
+}
+
 function sectionItemColor(def, item) {
   if (isQueueRenderer(def)) return PARA_COLORS[item?.note_para] || PARA_COLORS.inbox
   return ACCENT_HEX[def.accent] || ACCENT_HEX.mist
@@ -544,80 +569,146 @@ function CycleHealthCard({ cycle }) {
   )
 }
 
-// §4i: a learning-path recommendation carries a machine-renderable tree in
+// §4i: a learning-path recommendation carries a machine-renderable graph in
 // metadata.path (mind_knowledge 01_learning_path_method.md's format: flat `nodes` with
-// `requires` dependency edges). Render it as an expandable mind map — roots first, each
-// node expandable to its resource/practice and its dependents. Per §1's ADHD rule, only
-// the first root is open by default; everything else is collapsed behind a tap.
-const NODE_TYPE_STYLE = {
-  concept: 'text-violet-300 border-violet-400/40',
-  fact: 'text-emerald-300 border-emerald-400/40',
-  procedure: 'text-gold-300 border-gold-400/40'
+// `requires` dependency edges). Rendered as an actual node-and-arrow diagram — layered by
+// longest-path-from-root over `requires`, so prerequisite chains read top-to-bottom and
+// parallel nodes sit side by side. Tap a node for its resource/practice detail rather than
+// wrapping every label in explanatory prose, per §1's ADHD rule (surface the shape first,
+// detail on demand).
+const PATH_NODE_TYPE_FILL = {
+  concept: '#b7a6f7',
+  fact: '#5eead4',
+  procedure: '#f0d9a3'
 }
+const PATH_NODE_W = 168
+const PATH_NODE_H = 52
+const PATH_LEVEL_GAP = 72
+const PATH_NODE_GAP = 20
+const PATH_TOP_PAD = 20
+const PATH_MAX_PER_ROW = 4 // wrap same-level nodes (e.g. a flat set of terms) instead of one wide squeezed row
 
-function PathNode({ node, childrenOf, depth, defaultOpen, seen }) {
-  const [open, setOpen] = useState(!!defaultOpen)
-  if (seen.has(node.id)) return null // guard against malformed cyclic `requires`
-  const nextSeen = new Set(seen); nextSeen.add(node.id)
-  const kids = (childrenOf[node.id] || []).filter(k => !nextSeen.has(k.id))
-  const hasDetail = node.resource || node.practice || kids.length > 0
-  return (
-    <div className={depth > 0 ? 'ml-4 border-l border-ink-700 pl-3' : ''}>
-      <button
-        onClick={() => hasDetail && setOpen(o => !o)}
-        className="flex w-full items-center gap-2 py-1.5 text-left text-sm text-mist-100 hover:text-gold-200"
-      >
-        {hasDetail && <span className="text-xs text-mist-500">{open ? '▾' : '▸'}</span>}
-        {node.type && (
-          <span className={`rounded border px-1.5 py-0.5 text-[13px] uppercase tracking-wide ${NODE_TYPE_STYLE[node.type] || 'text-mist-400 border-ink-700'}`}>
-            {node.type}
-          </span>
-        )}
-        <span>{node.label}</span>
-      </button>
-      {open && (
-        <div className="mb-1 space-y-2">
-          {node.resource && (
-            <p className="ml-4 text-xs text-mist-400">
-              {node.resource.url ? (
-                <a href={node.resource.url} target="_blank" rel="noreferrer" className="text-violet-300 hover:text-violet-200">
-                  {node.resource.title} ↗
-                </a>
-              ) : (
-                <span className="text-mist-200">{node.resource.title}</span>
-              )}
-              {node.resource.why_this_one ? <span className="text-mist-500"> — {node.resource.why_this_one}</span> : null}
-            </p>
-          )}
-          {node.practice && <p className="ml-4 text-xs text-emerald-200/80">✎ {node.practice}</p>}
-          {kids.map(k => (
-            <PathNode key={k.id} node={k} childrenOf={childrenOf} depth={depth + 1} defaultOpen={false} seen={nextSeen} />
-          ))}
-        </div>
-      )}
-    </div>
-  )
-}
-
-function PathTree({ path }) {
+function PathDiagram({ path }) {
+  const [activeId, setActiveId] = useState(null)
   const nodes = Array.isArray(path?.nodes) ? path.nodes : []
   if (nodes.length === 0) return null
-  const ids = new Set(nodes.map(n => n.id))
-  const childrenOf = {}
-  for (const n of nodes) {
-    for (const req of n.requires || []) {
-      if (ids.has(req)) (childrenOf[req] ||= []).push(n)
+
+  const byId = {}
+  nodes.forEach(n => { byId[n.id] = n })
+
+  const level = {}
+  function levelOf(id, seen) {
+    if (level[id] != null) return level[id]
+    if (seen.has(id)) return 0 // guard against malformed cyclic `requires`
+    const reqs = (byId[id].requires || []).filter(r => byId[r])
+    if (reqs.length === 0) { level[id] = 0; return 0 }
+    const nextSeen = new Set(seen); nextSeen.add(id)
+    const l = 1 + Math.max(...reqs.map(r => levelOf(r, nextSeen)))
+    level[id] = l
+    return l
+  }
+  nodes.forEach(n => levelOf(n.id, new Set()))
+
+  const levelRows = {}
+  nodes.forEach(n => { (levelRows[level[n.id]] ||= []).push(n) })
+  const levelCount = Math.max(...Object.values(level)) + 1
+
+  // dependency levels become one or more visual rows, wrapped at PATH_MAX_PER_ROW
+  const visualRows = []
+  for (let l = 0; l < levelCount; l++) {
+    const row = levelRows[l] || []
+    for (let i = 0; i < row.length; i += PATH_MAX_PER_ROW) {
+      visualRows.push(row.slice(i, i + PATH_MAX_PER_ROW))
     }
   }
-  // roots = nodes whose prerequisites are all outside the set (or none)
-  const roots = nodes.filter(n => !(n.requires || []).some(r => ids.has(r)))
-  const list = roots.length ? roots : nodes // fall back to flat if every node has an in-set req
+  const rowCount = visualRows.length
+  const maxRowLen = Math.max(...visualRows.map(r => r.length))
+  const width = maxRowLen * PATH_NODE_W + (maxRowLen - 1) * PATH_NODE_GAP
+  const height = PATH_TOP_PAD * 2 + rowCount * PATH_NODE_H + (rowCount - 1) * PATH_LEVEL_GAP
+
+  const pos = {}
+  visualRows.forEach((row, ri) => {
+    const rowWidth = row.length * PATH_NODE_W + (row.length - 1) * PATH_NODE_GAP
+    const startX = (width - rowWidth) / 2
+    row.forEach((n, i) => {
+      pos[n.id] = { x: startX + i * (PATH_NODE_W + PATH_NODE_GAP), y: PATH_TOP_PAD + ri * (PATH_NODE_H + PATH_LEVEL_GAP) }
+    })
+  })
+
+  const edges = []
+  nodes.forEach(n => {
+    (n.requires || []).forEach(r => {
+      if (pos[r]) edges.push({ from: r, to: n.id })
+    })
+  })
+
+  const active = activeId ? byId[activeId] : null
+  const activeFill = active ? (PATH_NODE_TYPE_FILL[active.type] || '#9aa4ae') : null
+
   return (
-    <div className="mt-1">
-      {path.topic && <p className="mb-1 text-xs font-medium uppercase tracking-wide text-gold-200/80">{path.topic}</p>}
-      {list.map((n, i) => (
-        <PathNode key={n.id} node={n} childrenOf={childrenOf} depth={0} defaultOpen={i === 0} seen={new Set()} />
-      ))}
+    <div className="mt-3">
+      {path.topic && <p className="mb-2 text-xs font-medium uppercase tracking-wide text-gold-200/80">{path.topic}</p>}
+      <svg viewBox={`0 0 ${width} ${height}`} style={{ width: '100%', maxWidth: width, display: 'block', margin: '0 auto' }}>
+        <defs>
+          <marker id="path-arrow" viewBox="0 0 8 8" refX="7" refY="4" markerWidth="6" markerHeight="6" orient="auto-start-reverse">
+            <path d="M0,0 L8,4 L0,8 z" fill="#5c6570" />
+          </marker>
+        </defs>
+        {edges.map((e, i) => {
+          const a = pos[e.from], b = pos[e.to]
+          const x1 = a.x + PATH_NODE_W / 2, y1 = a.y + PATH_NODE_H
+          const x2 = b.x + PATH_NODE_W / 2, y2 = b.y
+          const midY = (y1 + y2) / 2
+          return (
+            <path key={i} d={`M ${x1},${y1} C ${x1},${midY} ${x2},${midY} ${x2},${y2}`}
+              fill="none" stroke="#5c6570" strokeOpacity="0.6" strokeWidth="1.5" markerEnd="url(#path-arrow)" />
+          )
+        })}
+        {nodes.map(n => {
+          const p = pos[n.id]
+          const fill = PATH_NODE_TYPE_FILL[n.type] || '#9aa4ae'
+          const isActive = activeId === n.id
+          return (
+            <g key={n.id} onClick={() => setActiveId(a => (a === n.id ? null : n.id))} style={{ cursor: 'pointer' }}>
+              <rect x={p.x} y={p.y} width={PATH_NODE_W} height={PATH_NODE_H} rx="10"
+                fill={fill} fillOpacity={isActive ? 0.28 : 0.12}
+                stroke={fill} strokeOpacity={isActive ? 0.9 : 0.5} strokeWidth={isActive ? 2 : 1.5} />
+              <foreignObject x={p.x + 8} y={p.y + 6} width={PATH_NODE_W - 16} height={PATH_NODE_H - 12}>
+                <div xmlns="http://www.w3.org/1999/xhtml" style={{ display: 'flex', height: '100%', alignItems: 'center', justifyContent: 'center', textAlign: 'center', fontSize: 12, lineHeight: 1.25, color: '#e7ebf0' }}>
+                  {n.label}
+                </div>
+              </foreignObject>
+            </g>
+          )
+        })}
+      </svg>
+
+      {active && (
+        <div className="mt-3 rounded-lg border border-ink-700 bg-ink-900/60 p-3">
+          <p className="mb-1 flex items-center gap-2 text-xs font-medium text-mist-200">
+            {active.type && (
+              <span className="rounded border px-1.5 py-0.5 text-[11px] uppercase tracking-wide" style={{ borderColor: activeFill, color: activeFill }}>
+                {active.type}
+              </span>
+            )}
+            {active.label}
+          </p>
+          {active.resource && (
+            <p className="text-xs text-mist-400">
+              {active.resource.url ? (
+                <a href={active.resource.url} target="_blank" rel="noreferrer" className="text-violet-300 hover:text-violet-200">
+                  {active.resource.title} ↗
+                </a>
+              ) : (
+                <span className="text-mist-200">{active.resource.title}</span>
+              )}
+              {active.resource.why_this_one ? <span className="text-mist-500"> — {active.resource.why_this_one}</span> : null}
+            </p>
+          )}
+          {active.practice && <p className="mt-1 text-xs text-emerald-200/80">✎ {active.practice}</p>}
+        </div>
+      )}
+
       {(path.sequencing_mode || path.timeline) && (
         <p className="mt-2 text-[13px] text-mist-500">
           {path.sequencing_mode ? `${path.sequencing_mode} sequencing` : ''}{path.sequencing_mode && path.timeline ? ' · ' : ''}{path.timeline || ''}
@@ -669,7 +760,7 @@ function RecommendationCard({ insight }) {
         <p className="text-sm leading-relaxed text-mist-100">{insight.summary}</p>
       </div>
 
-      {hasPath && <PathTree path={md.path} />}
+      {hasPath && <PathDiagram path={md.path} />}
       {md.chart && <MiniBarChart chart={md.chart} />}
 
       {md.suggestion && (
@@ -1205,14 +1296,16 @@ function NewsStrip({ items }) {
         <div className={`flex w-max items-center ${animate ? 'news-strip-anim' : 'px-4'}`}>
           {track.map((it, i) => {
             const url = (it.source_refs || []).find(r => r.type === 'resource' && r.url)?.url
+            const domain = classifyNewsDomain(it.summary)
+            const color = domain ? NEWS_DOMAIN_HEX[domain] : '#c7ccd1'
             return (
               <span key={i} className="flex shrink-0 items-center">
                 {url ? (
-                  <a href={url} target="_blank" rel="noreferrer" className="whitespace-nowrap text-xs text-mist-200 hover:text-white">
+                  <a href={url} target="_blank" rel="noreferrer" className="whitespace-nowrap text-[16.8px] hover:brightness-125" style={{ color }}>
                     {it.summary} <span className="text-gold-300">↗</span>
                   </a>
                 ) : (
-                  <span className="whitespace-nowrap text-xs text-mist-200">{it.summary}</span>
+                  <span className="whitespace-nowrap text-[16.8px]" style={{ color }}>{it.summary}</span>
                 )}
                 <span className="px-6 text-ink-600">•</span>
               </span>
@@ -1231,7 +1324,7 @@ function NewsStrip({ items }) {
         </button>
       )}
       <style jsx>{`
-        .news-strip-anim { animation: news-scroll 60s linear infinite; }
+        .news-strip-anim { animation: news-scroll 69s linear infinite; }
         .news-strip:hover .news-strip-anim { animation-play-state: paused; }
         @keyframes news-scroll { from { transform: translateX(0); } to { transform: translateX(-50%); } }
       `}</style>
@@ -1474,14 +1567,6 @@ export default function Mind({ user }) {
   const activeSectionDef = sections.find(d => d.id === activeSectionId) || null
   const activeSectionItemsList = activeSectionDef ? sectionItems(activeSectionDef, data, queue) : []
 
-  // §4f voice fix note (1): this click handler is the "deliberate begin tap" — the
-  // very first speechSynthesis.speak() in the page's life happens synchronously here,
-  // inside a real user gesture, so the browser doesn't silently swallow it.
-  function enterBrain() {
-    setMode('brain')
-    voice.speak(`Your brain, last updated ${brainUpdatedLabel}.`)
-  }
-
   function goToListView() {
     voice.cancel()
     setActiveSectionId(null)
@@ -1502,7 +1587,7 @@ export default function Mind({ user }) {
 
   const headerTitle =
     mode === 'list'
-      ? (tab === 'overview' ? 'Overview' : 'PARA, made fun')
+      ? (tab === 'overview' ? 'Overview' : 'PARA co-sorting')
       : (activeSectionDef ? activeSectionDef.title : 'Your Brain')
 
   return (
@@ -1525,16 +1610,18 @@ export default function Mind({ user }) {
                 onClick={() => setTab('parafun')}
                 className={`chip capitalize ${tab === 'parafun' ? 'border-emerald-400/50 text-emerald-300' : ''}`}
               >
-                PARA, made fun{queue.length > 0 ? ` (${queue.length})` : ''}
+                PARA co-sorting{queue.length > 0 ? ` (${queue.length})` : ''}
               </button>
             </>
           )}
-          <button
-            onClick={mode === 'brain' ? goToListView : enterBrain}
-            className="chip border-emerald-400/50 text-emerald-300"
-          >
-            {mode === 'brain' ? 'List view' : 'Visit Your Brain'}
-          </button>
+          {mode === 'brain' && (
+            <button
+              onClick={goToListView}
+              className="chip border-emerald-400/50 text-emerald-300"
+            >
+              List view
+            </button>
+          )}
         </div>
       </div>
 
