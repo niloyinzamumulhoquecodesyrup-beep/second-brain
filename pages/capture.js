@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react'
 import Link from 'next/link'
 import Layout from '../components/Layout'
+import TourOverlay from '../components/TourOverlay'
 import { requireSessionSSR } from '../lib/pageAuth'
 
 const PARA_OPTIONS = [
@@ -54,6 +55,7 @@ export default function Capture({ user }) {
 
   return (
     <Layout user={user}>
+      <TourOverlay step="capture" />
       <p className="label mb-2">Capture</p>
       <h1 className="mb-2 font-serif text-4xl font-light text-mist-100">What resonated with you?</h1>
       <p className="mb-8 max-w-2xl text-sm text-mist-400">

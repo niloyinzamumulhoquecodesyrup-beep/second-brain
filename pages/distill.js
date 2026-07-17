@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react'
 import Layout from '../components/Layout'
+import TourOverlay from '../components/TourOverlay'
 import ParaBadge from '../components/ParaBadge'
 import { requireSessionSSR } from '../lib/pageAuth'
 
@@ -43,6 +44,7 @@ export default function Distill({ user }) {
 
   return (
     <Layout user={user}>
+      <TourOverlay step="distill" />
       <p className="label mb-2 !text-gold-400">Distill</p>
       <h1 className="mb-2 font-serif text-4xl font-light text-mist-100">Refine to the essence</h1>
       <p className="mb-8 max-w-2xl text-sm text-mist-400">

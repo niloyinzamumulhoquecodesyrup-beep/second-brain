@@ -2,6 +2,7 @@ import { useEffect, useState, useCallback } from 'react'
 import { useRouter } from 'next/router'
 import Link from 'next/link'
 import Layout from '../components/Layout'
+import TourOverlay from '../components/TourOverlay'
 import ParaBadge from '../components/ParaBadge'
 import { requireSessionSSR } from '../lib/pageAuth'
 import { PARA_THEME } from '../lib/paraTheme'
@@ -50,6 +51,7 @@ export default function Organize({ user }) {
 
   return (
     <Layout user={user}>
+      <TourOverlay step="organize" />
       <p className="label mb-2">Organize</p>
       <h1 className="mb-2 font-serif text-4xl font-light text-mist-100">The PARA method</h1>
       <p className="mb-8 max-w-2xl text-sm text-mist-400">

@@ -32,7 +32,7 @@ export default function Register() {
         body: JSON.stringify({ email, password })
       })
       if (res.ok) {
-        router.push('/')
+        router.push('/mind')
       } else {
         const data = await res.json().catch(() => ({}))
         setError(data.error || 'Registration failed')

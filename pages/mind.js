@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import Link from 'next/link'
 import Layout from '../components/Layout'
+import TourOverlay from '../components/TourOverlay'
 import WaveVisualizer from '../components/WaveVisualizer'
 import ParticleField from '../components/ParticleField'
 import KnowledgeGalaxy from '../components/KnowledgeGalaxy'
@@ -1608,6 +1609,8 @@ export default function Mind({ user }) {
 
   return (
     <Layout user={user}>
+      <TourOverlay step="welcome" />
+      <TourOverlay step="summary" />
       <div className="mb-8 flex flex-wrap items-end justify-between gap-4">
         <div>
           <p className="label mb-2">Mind Model</p>
