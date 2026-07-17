@@ -308,11 +308,15 @@ function InsightRow({ insight }) {
   )
 }
 
+// Never-generated (age === null) is the first-run/just-onboarded state — the raw
+// "paste this into a Claude Code session" instructions are developer-facing plumbing,
+// not something to hand the end user before they've seen any real output. That case
+// renders a calm processing notice instead (see ProcessingNotice below); this banner
+// only ever shows the re-prompt for an account that has real (now-stale) data already.
 function StalenessBanner({ lastUpdated, prompt }) {
   const [copied, setCopied] = useState(false)
   const age = lastUpdated ? daysAgo(lastUpdated) : null
-  const isStale = age === null || age >= STALE_DAYS
-  if (!isStale) return null
+  if (age === null || age < STALE_DAYS) return null
 
   async function copyPrompt() {
     await navigator.clipboard.writeText(prompt)
@@ -323,9 +327,7 @@ function StalenessBanner({ lastUpdated, prompt }) {
   return (
     <div className="mb-8 rounded-xl border border-gold-400/30 bg-gold-500/5 p-4">
       <p className="text-sm text-gold-200">
-        {age === null
-          ? 'Your Mind Model has never been generated.'
-          : `Your Mind Model is ${age} day${age === 1 ? '' : 's'} old.`}{' '}
+        {`Your Mind Model is ${age} day${age === 1 ? '' : 's'} old.`}{' '}
         <strong className="text-gold-300">Ask Claude Code to refresh it</strong> — paste the prompt below into a
         Claude Code session with the Supabase MCP connected.
       </p>
@@ -337,6 +339,18 @@ function StalenessBanner({ lastUpdated, prompt }) {
           {copied ? 'Copied' : 'Copy'}
         </button>
       </div>
+    </div>
+  )
+}
+
+// First-run calm state: nothing has ever been generated yet, so there's nothing real
+// to show — a spinner-and-sentence rather than the technical Claude Code instructions
+// (those still surface once real data exists and later goes stale, via StalenessBanner).
+function ProcessingNotice() {
+  return (
+    <div className="mb-8 flex items-center gap-3 rounded-xl border border-ink-700 bg-ink-950 p-6">
+      <span className="h-2.5 w-2.5 shrink-0 animate-pulse rounded-full bg-emerald-400" />
+      <p className="text-sm text-mist-300">Your second brain is processing the information.</p>
     </div>
   )
 }
@@ -990,7 +1004,9 @@ function OverviewTab({ data, loading, running, runStage, runNow, refreshPrompt, 
 
       {!loading && <CycleHealthCard cycle={cycle} />}
 
-      {!loading && !hasAnything && (
+      {!loading && !hasAnything && !data?.lastUpdated && <ProcessingNotice />}
+
+      {!loading && !hasAnything && data?.lastUpdated && (
         <p className="text-sm text-mist-400">
           No insights yet. Click "Run now" to generate the four templated kinds, or ask Claude Code to write the overview (see above).
         </p>
