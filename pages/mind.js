@@ -344,10 +344,22 @@ const GOAL_NOTCH = 14
 const GOAL_TARGET_R = 48
 const GOAL_SPINE_X = GOAL_VW / 2
 
+// Each goal plate gets its own color (cycling through the app's existing accent family)
+// so distinct goals are visually distinct at a glance, not just by number/title text.
+const GOAL_PLATE_COLORS = [ACCENT_HEX.violet, ACCENT_HEX.gold, ACCENT_HEX.emerald, ACCENT_HEX.rose, ACCENT_HEX.mist]
+function goalPlateColor(i) {
+  return GOAL_PLATE_COLORS[i % GOAL_PLATE_COLORS.length]
+}
+function hexToRgb(hex) {
+  const n = parseInt(hex.slice(1), 16)
+  return `${(n >> 16) & 255},${(n >> 8) & 255},${n & 255}`
+}
+
 // One ribbon-flag banner: a rectangle plus a triangular-notched number tab on its outer
 // edge (mirrored left/right) — the literal shape from the reference infographic, redrawn
-// in the app's violet accent. Title only; no summary text renders here at all.
-function GoalRibbon({ goal, num, side, rowCenterY, active, onClick }) {
+// in a per-goal accent color (goalPlateColor) rather than a single fixed violet. Title
+// only; no summary text renders here at all.
+function GoalRibbon({ goal, num, side, rowCenterY, active, onClick, color }) {
   const rectY = rowCenterY - GOAL_BH / 2
   const innerX = side === 'left' ? GOAL_SPINE_X - GOAL_GAP : GOAL_SPINE_X + GOAL_GAP
   const rectX = side === 'left' ? innerX - GOAL_BW : innerX
@@ -362,19 +374,20 @@ function GoalRibbon({ goal, num, side, rowCenterY, active, onClick }) {
   // a truncated "Based on your Project and Area notes..." fragment.
   const title = goal.metadata?.name || shortGoalTitle(goal.summary)
 
+  const rgb = hexToRgb(color)
   return (
     <g onClick={onClick} className="cursor-pointer">
       <rect
         x={rectX} y={rectY} width={GOAL_BW} height={GOAL_BH} rx={10}
-        fill={active ? 'rgba(183,166,247,0.16)' : 'rgba(20,24,31,0.85)'}
-        stroke="#b7a6f7" strokeOpacity={active ? 0.9 : 0.35} strokeWidth={active ? 2 : 1.2}
+        fill={active ? `rgba(${rgb},0.22)` : `rgba(${rgb},0.1)`}
+        stroke={color} strokeOpacity={active ? 0.9 : 0.4} strokeWidth={active ? 2 : 1.2}
       />
-      <polygon points={tabPoints} fill="#b7a6f7" fillOpacity={active ? 0.95 : 0.7} />
+      <polygon points={tabPoints} fill={color} fillOpacity={active ? 0.95 : 0.7} />
       <text x={tabTextX} y={rowCenterY} textAnchor="middle" dominantBaseline="central" fill="#0b0f14" style={{ fontSize: 20, fontWeight: 700 }}>
         {num}
       </text>
       <text x={titleX} y={rowCenterY} textAnchor={side === 'left' ? 'start' : 'end'} dominantBaseline="central"
-        fill={active ? '#efeaff' : '#c7cbd1'} style={{ fontSize: 15, fontWeight: 500 }}>
+        fill={active ? '#f2f0ff' : '#c7cbd1'} style={{ fontSize: 15, fontWeight: 500 }}>
         {title}
       </text>
     </g>
@@ -450,18 +463,18 @@ function GoalArrowChart({ goals }) {
             <g key={i}>
               {lGoal && (
                 <>
-                  <line x1={GOAL_SPINE_X - GOAL_GAP} y1={rowCenterY} x2={GOAL_SPINE_X - GOAL_SHAFT_W / 2} y2={rowCenterY} stroke="#b7a6f7" strokeOpacity="0.4" strokeWidth="2" />
-                  <circle cx={GOAL_SPINE_X - GOAL_GAP} cy={rowCenterY} r="4" fill="#b7a6f7" />
+                  <line x1={GOAL_SPINE_X - GOAL_GAP} y1={rowCenterY} x2={GOAL_SPINE_X - GOAL_SHAFT_W / 2} y2={rowCenterY} stroke={goalPlateColor(i)} strokeOpacity="0.4" strokeWidth="2" />
+                  <circle cx={GOAL_SPINE_X - GOAL_GAP} cy={rowCenterY} r="4" fill={goalPlateColor(i)} />
                   <GoalRibbon goal={lGoal} num={String(i + 1).padStart(2, '0')} side="left" rowCenterY={rowCenterY}
-                    active={activeId === lGoal.id} onClick={() => toggle(lGoal.id)} />
+                    active={activeId === lGoal.id} onClick={() => toggle(lGoal.id)} color={goalPlateColor(i)} />
                 </>
               )}
               {rGoal && (
                 <>
-                  <line x1={GOAL_SPINE_X + GOAL_SHAFT_W / 2} y1={rowCenterY} x2={GOAL_SPINE_X + GOAL_GAP} y2={rowCenterY} stroke="#b7a6f7" strokeOpacity="0.4" strokeWidth="2" />
-                  <circle cx={GOAL_SPINE_X + GOAL_GAP} cy={rowCenterY} r="4" fill="#b7a6f7" />
+                  <line x1={GOAL_SPINE_X + GOAL_SHAFT_W / 2} y1={rowCenterY} x2={GOAL_SPINE_X + GOAL_GAP} y2={rowCenterY} stroke={goalPlateColor(half + i)} strokeOpacity="0.4" strokeWidth="2" />
+                  <circle cx={GOAL_SPINE_X + GOAL_GAP} cy={rowCenterY} r="4" fill={goalPlateColor(half + i)} />
                   <GoalRibbon goal={rGoal} num={String(half + i + 1).padStart(2, '0')} side="right" rowCenterY={rowCenterY}
-                    active={activeId === rGoal.id} onClick={() => toggle(rGoal.id)} />
+                    active={activeId === rGoal.id} onClick={() => toggle(rGoal.id)} color={goalPlateColor(half + i)} />
                 </>
               )}
             </g>
