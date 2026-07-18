@@ -56,6 +56,14 @@ function weekdayIndex(ymd) {
 function mondayOf(ymd) {
   return addDays(ymd, -weekdayIndex(ymd))
 }
+function daysBetween(a, b) {
+  return Math.round((ymdToDate(b) - ymdToDate(a)) / 86400000)
+}
+function fmtRoutineDays(days) {
+  if (!Array.isArray(days) || days.length === 0) return ''
+  if (days.length === 7) return 'daily'
+  return days.map(d => DAY_LABELS[d]).join(' + ')
+}
 function fmtTime(min) {
   const m = ((min % 1440) + 1440) % 1440
   return `${String(Math.floor(m / 60)).padStart(2, '0')}:${String(m % 60).padStart(2, '0')}`
@@ -585,9 +593,22 @@ export default function ProductivityTab() {
   const [renameText, setRenameText] = useState('')
   const [routineAnswer, setRoutineAnswer] = useState('')
   const [routineAnswerSent, setRoutineAnswerSent] = useState(false)
+  const [editingRoutineId, setEditingRoutineId] = useState(null)
+  const [routineEditTime, setRoutineEditTime] = useState('09:00')
+  const [routineEditDuration, setRoutineEditDuration] = useState(60)
   const [nowMin, setNowMin] = useState(() => { const d = new Date(); return d.getHours() * 60 + d.getMinutes() })
 
   const weekStart = mondayOf(selectedDate)
+  // Suggestions (a swim session "next Tuesday", a study block three weeks out) can
+  // land well past the week currently on screen. Fetch a window that always covers
+  // both the viewed week and a rolling 21-day horizon from today, so the "Suggested
+  // for you" list below never misses one just because it's not the visible week.
+  const todayMonday = mondayOf(today)
+  const fetchFrom = weekStart < todayMonday ? weekStart : todayMonday
+  const weekEnd = addDays(weekStart, 7)
+  const horizonEnd = addDays(today, 22)
+  const fetchUntil = weekEnd > horizonEnd ? weekEnd : horizonEnd
+  const fetchDays = Math.min(31, Math.max(7, daysBetween(fetchFrom, fetchUntil)))
 
   useEffect(() => {
     const t = setInterval(() => {
@@ -599,7 +620,7 @@ export default function ProductivityTab() {
 
   function load(silent) {
     if (!silent) setLoading(true)
-    return fetch(`/api/planner?from=${weekStart}&days=7`)
+    return fetch(`/api/planner?from=${fetchFrom}&days=${fetchDays}`)
       .then(r => r.json())
       .then(d => {
         setBlocks(d.blocks || [])
@@ -627,6 +648,22 @@ export default function ProductivityTab() {
   const questionPrompts = prompts.filter(p => p.prompt_type === 'question')
   const routineSuggestions = prompts.filter(p => p.prompt_type === 'routine_suggestion')
   const starters = STARTER_ROUTINES.filter(s => !routines.some(r => r.title.toLowerCase() === s.title.toLowerCase()))
+
+  // Every cycle-suggested one-off block across the whole fetched window, not just
+  // whichever day happens to be selected — this is what makes "swim next Tuesday"
+  // visible today instead of only when you happen to click over to that date.
+  const suggestedBlocks = useMemo(
+    () => blocks
+      .filter(b => b.status === 'suggested')
+      .sort((a, b) => (a.plan_date === b.plan_date ? a.start_min - b.start_min : (a.plan_date < b.plan_date ? -1 : 1))),
+    [blocks]
+  )
+
+  function fmtSuggestionWhen(planDate, startMin) {
+    const dateStr = String(planDate).slice(0, 10)
+    const label = dateStr === today ? 'today' : dateStr === addDays(today, 1) ? 'tomorrow' : fmtDayTitle(dateStr)
+    return `${label}, ${fmtTime(startMin)}`
+  }
 
   async function api(path, method, body) {
     setBusy(true)
@@ -716,8 +753,32 @@ export default function ProductivityTab() {
     load(true)
   }
 
+  function startEditRoutineTime(r) {
+    setEditingRoutineId(r.id)
+    setRoutineEditTime(fmtTime(r.start_min))
+    setRoutineEditDuration(r.duration_min)
+  }
+  async function saveRoutineTime(r) {
+    const [h, m] = routineEditTime.split(':').map(Number)
+    const start_min = (h || 0) * 60 + (m || 0)
+    const duration_min = Math.max(15, parseInt(routineEditDuration, 10) || r.duration_min)
+    setEditingRoutineId(null)
+    await patchRoutine(r.id, { start_min, duration_min })
+  }
+
   async function deleteRoutine(id) {
     await api(`/api/planner/routines/${id}`, 'DELETE')
+    load(true)
+  }
+
+  // Accept/dismiss for a suggested one-off block regardless of which day is
+  // currently selected — always a real (non-virtual) row, so no materialize branch.
+  async function acceptSuggestedBlock(block) {
+    await api(`/api/planner/${block.id}`, 'PATCH', { status: 'active' })
+    load(true)
+  }
+  async function dismissSuggestedBlock(block) {
+    await api(`/api/planner/${block.id}`, 'PATCH', { status: 'dismissed' })
     load(true)
   }
 
@@ -742,6 +803,51 @@ export default function ProductivityTab() {
       {questionPrompts.map(p => (
         <PromptCard key={p.id} prompt={p} onRespond={respondPrompt} busy={busy} />
       ))}
+
+      {/* ---- Suggested for you ---- */}
+      {(suggestedBlocks.length > 0 || routineSuggestions.length > 0) && (
+        <section>
+          <h2 className="mb-1 font-serif text-2xl font-light text-mist-100">Suggested for you</h2>
+          <p className="mb-3 text-sm text-mist-400">Pulled from your notes, tasks, and packets — nothing here is on your plan until you add it.</p>
+          <div className="space-y-2">
+            {suggestedBlocks.map(b => (
+              <div key={b.id} className="flex flex-wrap items-center gap-3 rounded-xl border border-violet-400/30 bg-ink-900 px-4 py-2.5 text-sm">
+                <span className="h-2.5 w-2.5 shrink-0 rounded-full" style={{ background: CATEGORY_COLORS[b.category] }} />
+                <span className="text-mist-100">{b.title}</span>
+                <button
+                  onClick={() => { setSelectedDate(String(b.plan_date).slice(0, 10)); setSelectedId(null) }}
+                  className="text-mist-400 underline decoration-dotted underline-offset-2 hover:text-mist-200"
+                  title="jump to this day"
+                >
+                  {fmtSuggestionWhen(b.plan_date, b.start_min)}
+                </button>
+                {(b.source_refs || [])[0]?.name && (
+                  <span className="rounded border border-violet-400/50 px-1.5 py-0.5 text-[10px] text-violet-400">{b.source_refs[0].name}</span>
+                )}
+                <span className="ml-auto flex items-center gap-2">
+                  <button disabled={busy} onClick={() => acceptSuggestedBlock(b)} className="chip !py-1 hover:border-emerald-400/60 hover:text-emerald-300">✓ add</button>
+                  <button disabled={busy} onClick={() => dismissSuggestedBlock(b)} className="chip !py-1 hover:border-ink-500 hover:text-mist-200">✕ dismiss</button>
+                </span>
+              </div>
+            ))}
+            {routineSuggestions.map(p => {
+              const s = p.suggestion || {}
+              return (
+                <div key={p.id} className="flex flex-wrap items-center gap-3 rounded-xl border border-violet-400/30 bg-ink-900 px-4 py-2.5 text-sm">
+                  <span className="h-2.5 w-2.5 shrink-0 rounded-full" style={{ background: CATEGORY_COLORS[s.category] || CATEGORY_COLORS.other }} />
+                  <span className="text-mist-100">{s.title}</span>
+                  <span className="text-mist-400">{fmtRoutineDays(s.days)}, {fmtTime(s.start_min)}</span>
+                  <span className="rounded border border-violet-400/50 px-1.5 py-0.5 text-[10px] text-violet-400">recurring</span>
+                  <span className="ml-auto flex items-center gap-2">
+                    <button disabled={busy} onClick={() => respondPrompt(p.id, { action: 'accept' })} className="chip !py-1 hover:border-emerald-400/60 hover:text-emerald-300">✓ add</button>
+                    <button disabled={busy} onClick={() => respondPrompt(p.id, { action: 'dismiss' })} className="chip !py-1 hover:border-ink-500 hover:text-mist-200">✕ dismiss</button>
+                  </span>
+                </div>
+              )
+            })}
+          </div>
+        </section>
+      )}
 
       {/* ---- Your day ---- */}
       <section>
@@ -887,7 +993,7 @@ export default function ProductivityTab() {
             </div>
             <div className="relative">
               <div className="pointer-events-none absolute inset-y-0 left-36 right-0" style={{ background: 'repeating-linear-gradient(to right, #181c20 0 1px, transparent 1px calc(100% / 7))' }} />
-              {routines.filter(r => r.active).length === 0 && routineSuggestions.length === 0 && (
+              {routines.filter(r => r.active).length === 0 && (
                 <p className="px-4 py-5 text-sm text-mist-400">No routines yet — build your skeleton in the routine planner below.</p>
               )}
               {routines.filter(r => r.active).map(r => (
@@ -900,26 +1006,6 @@ export default function ProductivityTab() {
                   </div>
                 </div>
               ))}
-              {routineSuggestions.map(p => {
-                const s = p.suggestion || {}
-                const color = CATEGORY_COLORS[s.category] || CATEGORY_COLORS.other
-                return (
-                  <div key={p.id} className="flex items-center">
-                    <div className="w-36 shrink-0 truncate px-3 py-2 text-[13px] text-mist-300">
-                      {s.title} <span className="text-[10px] text-violet-400">suggested</span>
-                    </div>
-                    <div className="relative h-8 flex-1">
-                      {(Array.isArray(s.days) ? s.days : []).map(d => (
-                        <div key={d} className="absolute top-2.5 h-3 rounded-full border border-dashed" style={{ left: `calc(${(d / 7) * 100}% + 6px)`, width: 'calc(100% / 7 - 12px)', borderColor: color }} />
-                      ))}
-                      <div className="absolute right-1 top-1 flex gap-1">
-                        <button disabled={busy} onClick={() => respondPrompt(p.id, { action: 'accept' })} className="rounded border border-emerald-400/40 px-1.5 text-[11px] text-emerald-300 hover:bg-emerald-500/10">✓ add</button>
-                        <button disabled={busy} onClick={() => respondPrompt(p.id, { action: 'dismiss' })} className="rounded border border-ink-600 px-1.5 text-[11px] text-mist-400 hover:text-mist-200">✕</button>
-                      </div>
-                    </div>
-                  </div>
-                )
-              })}
             </div>
           </div>
 
@@ -956,18 +1042,10 @@ export default function ProductivityTab() {
           </div>
         )}
 
-        {(starters.length > 0 || routineSuggestions.length > 0) && (
+        {starters.length > 0 && (
           <div className="mb-4">
             <p className="mb-2 text-xs uppercase tracking-wider text-mist-400">Tap to add</p>
             <div className="flex flex-wrap gap-2">
-              {routineSuggestions.map(p => {
-                const s = p.suggestion || {}
-                return (
-                  <button key={p.id} disabled={busy} onClick={() => respondPrompt(p.id, { action: 'accept' })} className="chip hover:border-violet-400/60 hover:text-violet-300" title="suggested by your last mind cycle">
-                    + {s.title} <span className="ml-1 text-[10px] text-violet-400">from your brain</span>
-                  </button>
-                )
-              })}
               {starters.map(s => (
                 <button key={s.title} disabled={busy} onClick={() => addStarter(s)} className="chip hover:border-emerald-400/60 hover:text-emerald-300">
                   + {s.title}
@@ -982,7 +1060,35 @@ export default function ProductivityTab() {
             <div key={r.id} className={`flex flex-wrap items-center gap-3 rounded-xl border border-ink-600 bg-ink-900 px-4 py-2.5 text-sm ${r.active ? '' : 'opacity-50'}`}>
               <span className="h-2.5 w-2.5 shrink-0 rounded-full" style={{ background: CATEGORY_COLORS[r.category] }} />
               <span className="min-w-[120px] text-mist-100">{r.title}</span>
-              <span className="text-mist-400">{fmtTime(r.start_min)} – {fmtTime(r.start_min + r.duration_min)}</span>
+              {editingRoutineId === r.id ? (
+                <span className="flex items-center gap-1">
+                  <input
+                    type="time"
+                    value={routineEditTime}
+                    onChange={e => setRoutineEditTime(e.target.value)}
+                    className="rounded border border-ink-600 bg-ink-950 px-1.5 py-0.5 text-xs text-mist-300 focus:border-emerald-400/60 focus:outline-none"
+                  />
+                  <input
+                    type="number"
+                    min="15"
+                    step="15"
+                    value={routineEditDuration}
+                    onChange={e => setRoutineEditDuration(e.target.value)}
+                    className="w-14 rounded border border-ink-600 bg-ink-950 px-1.5 py-0.5 text-xs text-mist-300 focus:border-emerald-400/60 focus:outline-none"
+                  />
+                  <span className="text-mist-500">min</span>
+                  <button disabled={busy} onClick={() => saveRoutineTime(r)} className="text-emerald-300 hover:brightness-125">save</button>
+                  <button onClick={() => setEditingRoutineId(null)} className="text-mist-400 hover:text-mist-200">cancel</button>
+                </span>
+              ) : (
+                <button
+                  onClick={() => startEditRoutineTime(r)}
+                  title="change timing"
+                  className="text-mist-400 underline decoration-dotted decoration-mist-500/50 underline-offset-2 hover:text-mist-200"
+                >
+                  {fmtTime(r.start_min)} – {fmtTime(r.start_min + r.duration_min)}
+                </button>
+              )}
               <span className="flex gap-1">
                 {DAY_LABELS.map((d, i) => {
                   const on = (r.days || []).includes(i)
