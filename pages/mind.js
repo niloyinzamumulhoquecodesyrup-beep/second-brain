@@ -3,6 +3,7 @@ import Link from 'next/link'
 import Layout from '../components/Layout'
 import KnowledgeGalaxy from '../components/KnowledgeGalaxy'
 import Onboarding from '../components/Onboarding'
+import ProductivityTab from '../components/ProductivityTab'
 import TourOverlay from '../components/TourOverlay'
 import { requireSessionSSR } from '../lib/pageAuth'
 import { embedPendingNotes } from '../lib/clientEmbeddings'
@@ -119,6 +120,8 @@ Then process the PARA-fun queue (para_fun_queue): first read all existing rows f
 Hard rules, no exceptions: (1) never insert directly into notes, tasks, or packets as part of this step — every proposal, including a new capture, is a para_fun_queue row requiring the user's tap before anything real is created; (2) cap total new rows added this cycle (pending + new) at 5-8, at most 2-3 of which are new_capture_proposals — do not flood the queue; (3) before proposing a new capture, check existing notes/tags for a near-duplicate and skip the proposal if one already covers it; (4) every assumed_answer must have non-empty source_refs explaining what data or reasoning it came from — an assumed answer with no traceable source is a bug, not a shortcut; (5) an invented question_type must still use the same row shape (question_text, options, assumed_answer, section, priority_rank) — there is no side channel for writing data outside this mechanism.
 
 Then re-emit the "feed" mind_sections row that powers the Overview page's "Latest in your world" news strip (§4j; mind_knowledge topic "refinement_loop" — "Brain sections" rule, superseding language still applies even though "Visit Your Brain" itself has been removed): metadata.items: [{ text, url?, source_refs? }], sourced from real web research (same posture as the field investigation above), capped at 6 items, filtered to what's genuinely currently notable and against user_model so it resonates with this specific person. Supersede the prior feed row rather than editing it in place. Skip writing a feed section entirely when there's nothing real behind it — an empty ticker is worse than none. Other mind_sections renderer types (insight_list, queue, question, activity_digest, reminder) have no UI consumer anymore and should not be written.
+
+Then tend the productivity planner (mind_knowledge topic "productivity_planner_method"; tables planner_routines / planner_blocks / planner_prompts). Read all three for this account first, including answered planner_prompts rows — a free-text answer to "What do you do on a regular basis?" or a picked option on one of your earlier questions is user-provided ground truth waiting to be turned into structure. From those answers plus the user_model, tasks with due dates, open loops, and recurring themes in the notes, write: (a) at most 2-3 new planner_blocks rows with status='suggested' and source='cycle', each pinned to a real upcoming plan_date with a sensible start_min/duration_min (minutes from midnight) and category (sleep|work|study|exercise|meals|leisure|other), and non-empty source_refs naming the evidence — a suggestion with no traceable source is a bug; (b) at most 1-2 new planner_prompts rows — prompt_type='question' (with options) only when a real evidence gap blocks a better suggestion (e.g. the notes hint at swimming but never say which days), or prompt_type='routine_suggestion' with a complete suggestion payload {"title", "category", "days" (0=Mon..6=Sun), "start_min", "duration_min"}. Planner hard rules, same posture as the PARA queue: never INSERT or UPDATE planner_routines directly and never create or edit planner_blocks rows whose status is active/done/skipped — acceptance happens only through the user's tap in the app; don't re-suggest anything already pending or dismissed within the last two weeks; mark your own stale still-'suggested' blocks whose plan_date has passed as dismissed; if the user has no routines and no answered prompts yet, skip suggestions entirely and leave at most the single standing question.
 
 Finally, record the cycle: write one mind_cycle_runs row (started_at, completed_at, tokens_used = your own honest estimate of tokens spent this cycle, sections_written, insights_written, status = ok | partial | error, notes = free text on anything that failed). Record partial and failed cycles honestly — the dashboard surfaces them so I can tell whether the refresh actually did what it claimed (§4k).`
 }
@@ -1555,7 +1558,7 @@ export default function Mind({ user }) {
     )
   }
 
-  const headerTitle = tab === 'overview' ? 'Overview' : tab === 'library' ? 'Knowledge library' : 'PARA co-sorting'
+  const headerTitle = tab === 'overview' ? 'Overview' : tab === 'library' ? 'Knowledge library' : tab === 'planner' ? 'Productivity support' : 'PARA co-sorting'
 
   return (
     <Layout user={user}>
@@ -1585,6 +1588,12 @@ export default function Mind({ user }) {
           >
             Knowledge library
           </button>
+          <button
+            onClick={() => setTab('planner')}
+            className={`chip capitalize ${tab === 'planner' ? 'border-emerald-400/50 text-emerald-300' : ''}`}
+          >
+            Productivity support
+          </button>
         </div>
       </div>
 
@@ -1592,6 +1601,8 @@ export default function Mind({ user }) {
         <OverviewTab data={data} loading={loading} running={running} runStage={runStage} runNow={runNow} refreshPrompt={refreshPrompt} cycle={cycles} feedItems={feedItems} stats={stats} topics={topics} />
       ) : tab === 'library' ? (
         <KnowledgeLibraryTab />
+      ) : tab === 'planner' ? (
+        <ProductivityTab />
       ) : (
         <ParaFunTab queue={queue} loading={queueLoading} onAnswer={answerQueue} submitting={submitting} />
       )}

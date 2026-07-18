@@ -30,7 +30,8 @@ const DOCS = [
   { file: '03_refinement_loop.md', topic: 'refinement_loop', source_urls: [] },
   { file: '05_topic_map_method.md', topic: 'topic_map_method', source_urls: [] },
   { file: '06_field_investigation_method.md', topic: 'field_investigation_method', source_urls: [] },
-  { file: '07_onboarding_import_method.md', topic: 'onboarding_import_method', source_urls: [] }
+  { file: '07_onboarding_import_method.md', topic: 'onboarding_import_method', source_urls: [] },
+  { file: '08_productivity_planner_method.md', topic: 'productivity_planner_method', source_urls: [] }
 ]
 
 async function main() {
