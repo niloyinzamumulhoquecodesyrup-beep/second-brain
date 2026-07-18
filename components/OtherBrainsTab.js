@@ -51,7 +51,7 @@ function timeAgo(iso) {
   return `${Math.floor(hours / 24)}d ago`
 }
 
-function IdentityGate({ onCreated }) {
+export function IdentityGate({ onCreated }) {
   const [name, setName] = useState('')
   const [error, setError] = useState('')
   const [busy, setBusy] = useState(false)

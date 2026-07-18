@@ -2,62 +2,160 @@ import { useEffect, useRef, useState } from 'react'
 import { useTheme } from './ThemeProvider'
 
 // "What the community is studying" as the same glowing force-directed map style as
-// the personal Interest Clusters (components/KnowledgeGalaxy.js) — just fed a flat
-// aggregate (domain, brains) instead of a personal topic tree. No hierarchy exists
-// here (every domain is a sibling, no parent/child), so the layout is repulsion-only
-// with a mild pull back toward center, and there are no edges to draw. Mechanics
-// (dpr/resize, pan/zoom, star field, theme-aware palette, heat overlay) are mirrored
-// from KnowledgeGalaxy on purpose so the two maps feel like the same instrument.
+// the personal Interest Clusters (components/KnowledgeGalaxy.js): a fixed taxonomy of
+// human knowledge (Science, Technology, Politics, Arts, Commerce, Humanities and their
+// subfields) rendered as a tree with real edges, not a flat bag of dots. Every field
+// is always shown — lit and sized where the community aggregate (domain, brains) has
+// real accounts studying it, dim and small everywhere else — so the map reads as "all
+// of knowledge, here's where the community actually is" rather than only ever showing
+// whatever domain strings happen to already exist in mind_knowledge_library.
+//
+// `clusters` (domain, brains) is matched against taxonomy leaf names case-insensitively.
+// Any real domain that doesn't match a known field (free text, so it never fully will)
+// still gets its own node under "Other Fields" rather than being dropped — real
+// community data always wins over the fixed list.
+const TAXONOMY = [
+  { slug: 'root', parent: null, name: 'All Knowledge', cluster: 'root' },
 
-// A domain is an arbitrary free-text string (mind_knowledge_library.domain across
-// every account), not a fixed small set like the personal map's four clusters — so
-// colors are assigned by a stable hash into a wider palette instead of a lookup
-// table, keeping a given domain's color consistent across reloads regardless of
-// where it lands in the sorted-by-count list.
-const DARK_PALETTE = [
-  '110,231,150', // green
-  '96,190,250',  // blue
-  '251,113,146', // rose
-  '192,145,252', // violet
-  '240,217,163', // gold
-  '240,150,120', // coral
-  '240,163,196', // pink
-  '150,214,214'  // teal
+  { slug: 'science', parent: 'root', name: 'Science', cluster: 'science' },
+  { slug: 'physics', parent: 'science', name: 'Physics', cluster: 'science' },
+  { slug: 'biology', parent: 'science', name: 'Biology', cluster: 'science' },
+  { slug: 'chemistry', parent: 'science', name: 'Chemistry', cluster: 'science' },
+  { slug: 'mathematics', parent: 'science', name: 'Mathematics', cluster: 'science' },
+  { slug: 'astronomy', parent: 'science', name: 'Astronomy', cluster: 'science' },
+  { slug: 'earthscience', parent: 'science', name: 'Earth Science', cluster: 'science' },
+  { slug: 'medicine', parent: 'science', name: 'Medicine', cluster: 'science' },
+  { slug: 'neuroscience', parent: 'biology', name: 'Neuroscience', cluster: 'science' },
+  { slug: 'genetics', parent: 'biology', name: 'Genetics', cluster: 'science' },
+  { slug: 'psychology', parent: 'science', name: 'Psychology', cluster: 'science' },
+
+  { slug: 'technology', parent: 'root', name: 'Technology', cluster: 'technology' },
+  { slug: 'compsci', parent: 'technology', name: 'Computer Science', cluster: 'technology' },
+  { slug: 'ai', parent: 'compsci', name: 'Artificial Intelligence', cluster: 'technology' },
+  { slug: 'engineering', parent: 'technology', name: 'Engineering', cluster: 'technology' },
+  { slug: 'robotics', parent: 'engineering', name: 'Robotics', cluster: 'technology' },
+
+  { slug: 'politics', parent: 'root', name: 'Politics', cluster: 'politics' },
+  { slug: 'polphil', parent: 'politics', name: 'Political Theory', cluster: 'politics' },
+  { slug: 'intlrelations', parent: 'politics', name: 'International Relations', cluster: 'politics' },
+  { slug: 'publicpolicy', parent: 'politics', name: 'Public Policy', cluster: 'politics' },
+  { slug: 'law', parent: 'politics', name: 'Law', cluster: 'politics' },
+  { slug: 'government', parent: 'politics', name: 'Government', cluster: 'politics' },
+
+  { slug: 'arts', parent: 'root', name: 'Arts', cluster: 'arts' },
+  { slug: 'visualarts', parent: 'arts', name: 'Visual Arts', cluster: 'arts' },
+  { slug: 'music', parent: 'arts', name: 'Music', cluster: 'arts' },
+  { slug: 'literature', parent: 'arts', name: 'Literature', cluster: 'arts' },
+  { slug: 'film', parent: 'arts', name: 'Film', cluster: 'arts' },
+  { slug: 'design', parent: 'arts', name: 'Design', cluster: 'arts' },
+  { slug: 'performingarts', parent: 'arts', name: 'Performing Arts', cluster: 'arts' },
+
+  { slug: 'commerce', parent: 'root', name: 'Commerce', cluster: 'commerce' },
+  { slug: 'business', parent: 'commerce', name: 'Business', cluster: 'commerce' },
+  { slug: 'finance', parent: 'commerce', name: 'Finance', cluster: 'commerce' },
+  { slug: 'economics', parent: 'commerce', name: 'Economics', cluster: 'commerce' },
+  { slug: 'marketing', parent: 'commerce', name: 'Marketing', cluster: 'commerce' },
+  { slug: 'entrepreneurship', parent: 'commerce', name: 'Entrepreneurship', cluster: 'commerce' },
+  { slug: 'trade', parent: 'commerce', name: 'Trade', cluster: 'commerce' },
+
+  { slug: 'humanities', parent: 'root', name: 'Humanities', cluster: 'humanities' },
+  { slug: 'philosophy', parent: 'humanities', name: 'Philosophy', cluster: 'humanities' },
+  { slug: 'ethics', parent: 'philosophy', name: 'Ethics', cluster: 'humanities' },
+  { slug: 'history', parent: 'humanities', name: 'History', cluster: 'humanities' },
+  { slug: 'sociology', parent: 'humanities', name: 'Sociology', cluster: 'humanities' },
+  { slug: 'linguistics', parent: 'humanities', name: 'Linguistics', cluster: 'humanities' },
+  { slug: 'religion', parent: 'humanities', name: 'Religion', cluster: 'humanities' }
 ]
-const LIGHT_PALETTE = [
-  '21,128,61',
-  '21,104,168',
-  '184,48,90',
-  '124,79,209',
-  '168,124,24',
-  '180,90,40',
-  '180,60,110',
-  '20,110,110'
-]
-function hashIndex(name, len) {
-  let h = 0
-  for (let i = 0; i < name.length; i++) h = (h * 31 + name.charCodeAt(i)) | 0
-  return Math.abs(h) % len
+
+// Flat taxonomy + live (domain, brains) aggregate -> the nested {id, name, cluster,
+// brains, children} shape the force layout expects. Real domains that don't match any
+// fixed name land under a synthesized "Other Fields" hub instead of being dropped.
+function buildTree(clusters) {
+  const byDomain = {}
+  ;(clusters || []).forEach(c => {
+    const key = (c.domain || '').trim().toLowerCase()
+    if (!key) return
+    byDomain[key] = { brains: (byDomain[key]?.brains || 0) + c.brains, domain: c.domain }
+  })
+
+  const flat = TAXONOMY.map(t => ({ ...t }))
+  const matched = new Set()
+  flat.forEach(t => {
+    const hit = byDomain[t.name.toLowerCase()]
+    if (hit) { t.brains = hit.brains; matched.add(t.name.toLowerCase()) }
+  })
+
+  const unmatched = Object.entries(byDomain).filter(([key]) => !matched.has(key))
+  if (unmatched.length > 0) {
+    flat.push({ slug: 'other', parent: 'root', name: 'Other Fields', cluster: 'other' })
+    unmatched.forEach(([key, hit], i) => {
+      flat.push({ slug: `other-${i}`, parent: 'other', name: hit.domain, cluster: 'other', brains: hit.brains })
+    })
+  }
+
+  const bySlug = {}
+  flat.forEach(t => { bySlug[t.slug] = { id: t.slug, name: t.name, cluster: t.cluster, brains: t.brains || 0 } })
+  let root = null
+  flat.forEach(t => {
+    const node = bySlug[t.slug]
+    if (!t.parent) { root = node; return }
+    const parent = bySlug[t.parent]
+    if (!parent) return
+    if (!parent.children) parent.children = []
+    parent.children.push(node)
+  })
+  return root || bySlug.root
+}
+
+// Dark-mode values tuned to glow against the near-black canvas; light mode gets its
+// own deeper hue set so the same fields stay recognizable against the sky background.
+const CLUSTER_RGB = {
+  root: '148,163,184',
+  science: '110,231,150',      // green
+  technology: '96,190,250',    // blue
+  politics: '244,114,114',     // red
+  arts: '240,163,196',         // pink
+  commerce: '240,217,163',     // gold
+  humanities: '192,145,252',   // violet
+  other: '150,214,214'         // teal
+}
+const CLUSTER_RGB_LIGHT = {
+  root: '75,85,99',
+  science: '21,128,61',
+  technology: '21,104,168',
+  politics: '185,45,45',
+  arts: '180,60,110',
+  commerce: '168,124,24',
+  humanities: '124,79,209',
+  other: '20,110,110'
 }
 
 const PALETTES = {
   dark: {
     bg: '5,6,8',
     star: '226,232,240',
+    unlitNode: '148,163,184',
+    unlitLabel: '180,190,200',
     litLabel: '255,255,255',
     labelShadow: 'rgba(0,0,0,0.9)',
     selectionRing: 'rgba(255,255,255,0.9)',
     vignette: '0,0,0',
-    vignetteAlpha: 0.55
+    vignetteAlpha: 0.55,
+    unlitNodeAlpha: 0.35,
+    unlitEdgeAlpha: 0.12
   },
   light: {
     bg: '223,231,238',
     star: '90,102,115',
+    unlitNode: '100,112,128',
+    unlitLabel: '90,100,112',
     litLabel: '20,22,26',
     labelShadow: 'rgba(255,255,255,0.85)',
     selectionRing: 'rgba(20,22,26,0.85)',
     vignette: '70,80,95',
-    vignetteAlpha: 0.22
+    vignetteAlpha: 0.22,
+    unlitNodeAlpha: 0.45,
+    unlitEdgeAlpha: 0.16
   }
 }
 
@@ -84,12 +182,10 @@ function heatColor(t) {
   return HEAT_STOPS[HEAT_STOPS.length - 1][1].join(',')
 }
 
-function nodeRadius(brains) {
-  return 8 + Math.sqrt(brains) * 4.2
-}
-function heatFor(brains) {
-  return Math.min(1, 0.22 + brains * 0.12)
-}
+function hubRadius(depth) { return Math.max(5, 15 - depth * 2.6) }
+function leafRadius(brains) { return brains > 0 ? 6 + Math.sqrt(brains) * 3.4 : 3 }
+function heatFor(brains) { return Math.min(1, 0.22 + brains * 0.12) }
+
 function makeStars(count, spread) {
   const stars = []
   for (let i = 0; i < count; i++) {
@@ -105,32 +201,51 @@ function makeStars(count, spread) {
 }
 function clamp(v, lo, hi) { return Math.min(hi, Math.max(lo, v)) }
 
-// Repulsion-only layout — no springs/edges since domains have no parent/child
-// relationship, just a gentle inward pull so the cluster settles near the center
-// instead of drifting apart indefinitely.
-function layoutNodes(clusters) {
-  const nodes = clusters.map(c => ({
-    ref: c,
-    x: (Math.random() - 0.5) * 260,
-    y: (Math.random() - 0.5) * 260
-  }))
-  for (let iter = 0; iter < 200; iter++) {
+function flatten(root) {
+  const nodes = []
+  const edges = []
+  ;(function walk(n, parent, depth) {
+    nodes.push({ ref: n, depth, x: (Math.random() - 0.5) * 260, y: (Math.random() - 0.5) * 260 })
+    if (parent) edges.push([parent.ref.id, n.id])
+    if (n.children) n.children.forEach(c => walk(c, nodes[nodes.length - 1], depth + 1))
+  })(root, null, 0)
+  return { nodes, edges }
+}
+
+// Pairwise repulsion + edge springs so parent/child fields pull toward each other at a
+// depth-scaled resting distance — the same mechanic as KnowledgeGalaxy's personal map,
+// applied here to the community taxonomy so fields read as connected, not scattered.
+function runForceLayout(root) {
+  const { nodes, edges } = flatten(root)
+  const byId = {}
+  nodes.forEach(n => { byId[n.ref.id] = n })
+  const simEdges = edges.map(([a, b]) => [byId[a], byId[b]])
+
+  for (let iter = 0; iter < 220; iter++) {
     for (let i = 0; i < nodes.length; i++) {
       for (let j = i + 1; j < nodes.length; j++) {
         const a = nodes[i], b = nodes[j]
         const dx = a.x - b.x, dy = a.y - b.y
         const distSq = Math.max(dx * dx + dy * dy, 0.02)
         const dist = Math.sqrt(distSq)
-        const minDist = (a.r || 20) + (b.r || 20) + 14
-        const force = 2200 / distSq + (dist < minDist ? (minDist - dist) * 0.8 : 0)
+        const force = 2400 / distSq
         const fx = (dx / dist) * force, fy = (dy / dist) * force
         a.x += fx; a.y += fy
         b.x -= fx; b.y -= fy
       }
     }
-    nodes.forEach(n => { n.x *= 0.99; n.y *= 0.99 })
+    simEdges.forEach(([a, b]) => {
+      const dx = b.x - a.x, dy = b.y - a.y
+      const dist = Math.sqrt(dx * dx + dy * dy) || 0.02
+      const target = 68 + a.depth * 6
+      const diff = (dist - target) * 0.06
+      const fx = (dx / dist) * diff, fy = (dy / dist) * diff
+      a.x += fx; a.y += fy
+      b.x -= fx; b.y -= fy
+    })
+    nodes.forEach(n => { n.x *= 0.995; n.y *= 0.995 })
   }
-  return nodes
+  return { nodes, edges: simEdges }
 }
 
 export default function CommunityMap({ clusters }) {
@@ -148,7 +263,6 @@ export default function CommunityMap({ clusters }) {
   useEffect(() => { themeRef.current = theme }, [theme])
 
   useEffect(() => {
-    if (!clusters || clusters.length === 0) return
     const canvas = canvasRef.current
     const ctx = canvas.getContext('2d')
     const dpr = Math.min(window.devicePixelRatio || 1, 2)
@@ -156,13 +270,12 @@ export default function CommunityMap({ clusters }) {
       document.documentElement.dataset.calmMode === 'on' ||
       window.matchMedia('(prefers-reduced-motion: reduce)').matches
 
-    const nodes = layoutNodes(clusters)
+    const { nodes, edges } = runForceLayout(buildTree(clusters))
     nodes.forEach(n => {
-      n.r = nodeRadius(n.ref.brains)
-      n.heat = heatFor(n.ref.brains)
-      const idx = hashIndex(n.ref.domain, DARK_PALETTE.length)
-      n.colorDark = DARK_PALETTE[idx]
-      n.colorLight = LIGHT_PALETTE[idx]
+      const brains = n.ref.brains || 0
+      n.lit = brains > 0
+      n.heat = n.lit ? heatFor(brains) : 0
+      n.r = n.ref.children ? hubRadius(n.depth) : leafRadius(brains)
     })
 
     const minX = Math.min(...nodes.map(n => n.x - n.r)), maxX = Math.max(...nodes.map(n => n.x + n.r))
@@ -285,7 +398,7 @@ export default function CommunityMap({ clusters }) {
     function draw(now) {
       if (width === 0 || height === 0) { raf = requestAnimationFrame(draw); return }
       const pal = PALETTES[themeRef.current] || PALETTES.dark
-      const isLight = themeRef.current === 'light'
+      const clusterRgb = themeRef.current === 'light' ? CLUSTER_RGB_LIGHT : CLUSTER_RGB
       ctx.fillStyle = `rgb(${pal.bg})`
       ctx.fillRect(0, 0, width, height)
 
@@ -300,14 +413,31 @@ export default function CommunityMap({ clusters }) {
         ctx.fill()
       })
 
+      edges.forEach(([a, b]) => {
+        const [ax, ay] = worldToScreen(a.x, a.y)
+        const [bx, by] = worldToScreen(b.x, b.y)
+        const rgb = clusterRgb[b.ref.cluster] || clusterRgb.root
+        const alpha = b.lit ? 0.32 : pal.unlitEdgeAlpha
+        ctx.strokeStyle = `rgba(${rgb},${alpha})`
+        ctx.lineWidth = Math.max(0.6, 1 * zoom / fitZoom)
+        ctx.beginPath()
+        ctx.moveTo(ax, ay); ctx.lineTo(bx, by)
+        ctx.stroke()
+      })
+
       nodes.forEach(n => {
         const [sx, sy] = worldToScreen(n.x, n.y)
         if (sx < -40 || sx > width + 40 || sy < -40 || sy > height + 40) return
-        const rgb = isLight ? n.colorLight : n.colorDark
+        const rgb = clusterRgb[n.ref.cluster] || clusterRgb.root
         const r = n.r * zoom
-        ctx.shadowColor = `rgba(${rgb},0.9)`
-        ctx.shadowBlur = 8 + n.heat * 22
-        ctx.fillStyle = `rgba(${rgb},${0.55 + n.heat * 0.4})`
+        if (n.lit) {
+          ctx.shadowColor = `rgba(${rgb},0.9)`
+          ctx.shadowBlur = 8 + n.heat * 22
+          ctx.fillStyle = `rgba(${rgb},${0.55 + n.heat * 0.4})`
+        } else {
+          ctx.shadowBlur = 0
+          ctx.fillStyle = n.ref.children ? `rgba(${rgb},0.28)` : `rgba(${pal.unlitNode},${pal.unlitNodeAlpha})`
+        }
         ctx.beginPath()
         ctx.arc(sx, sy, Math.max(1, r), 0, Math.PI * 2)
         ctx.fill()
@@ -325,6 +455,7 @@ export default function CommunityMap({ clusters }) {
         ctx.save()
         ctx.globalCompositeOperation = 'lighter'
         nodes.forEach(n => {
+          if (!n.lit) return
           const [sx, sy] = worldToScreen(n.x, n.y)
           if (sx < -200 || sx > width + 200 || sy < -200 || sy > height + 200) return
           const radius = (n.r * 4 + 24 + n.heat * 60) * zoom
@@ -344,13 +475,14 @@ export default function CommunityMap({ clusters }) {
         const [sx, sy] = worldToScreen(n.x, n.y)
         if (sx < -40 || sx > width + 40 || sy < -40 || sy > height + 40) return
         const r = n.r * zoom
-        if (r > 8) {
-          ctx.font = '600 12px -apple-system,system-ui,sans-serif'
-          ctx.fillStyle = `rgba(${pal.litLabel},0.95)`
+        const screenR = n.r * zoom
+        if (screenR > 9 || (n.lit && screenR > 5)) {
+          ctx.font = n.lit ? '600 12px -apple-system,system-ui,sans-serif' : '400 11px -apple-system,system-ui,sans-serif'
+          ctx.fillStyle = n.lit ? `rgba(${pal.litLabel},0.95)` : `rgba(${pal.unlitLabel},0.55)`
           ctx.textAlign = 'center'
           ctx.shadowColor = pal.labelShadow
           ctx.shadowBlur = 6
-          ctx.fillText(n.ref.domain, sx, sy + r + 14)
+          ctx.fillText(n.ref.name, sx, sy + Math.max(1, r) + 14)
           ctx.shadowBlur = 0
         }
       })
@@ -379,10 +511,6 @@ export default function CommunityMap({ clusters }) {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [clusters])
 
-  if (!clusters || clusters.length === 0) {
-    return <p className="text-sm text-mist-400">No fields tracked yet across the community.</p>
-  }
-
   return (
     <div className="card overflow-hidden p-0">
       <div className="flex flex-wrap items-center justify-between gap-2 border-b border-ink-700 px-4 py-3 sm:px-6">
@@ -405,9 +533,11 @@ export default function CommunityMap({ clusters }) {
         <div className="border-t border-ink-700 bg-ink-950/60 p-4">
           <div className="flex items-start justify-between gap-3">
             <div>
-              <p className="text-sm font-medium text-mist-100">{selected.ref.domain}</p>
+              <p className="text-sm font-medium text-mist-100">{selected.ref.name}</p>
               <p className="text-xs text-mist-500">
-                {selected.ref.brains} {selected.ref.brains === 1 ? 'brain' : 'brains'} studying this
+                {selected.ref.brains > 0
+                  ? `${selected.ref.brains} ${selected.ref.brains === 1 ? 'brain' : 'brains'} studying this`
+                  : 'no brains studying this yet'}
               </p>
             </div>
             <button onClick={() => setSelected(null)} className="text-xs text-mist-500 hover:text-mist-300">close</button>
