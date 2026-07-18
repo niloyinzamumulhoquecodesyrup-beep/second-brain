@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState } from 'react'
 import Link from 'next/link'
+import { useTheme } from './ThemeProvider'
 
 // Interest clusters + how-you-work, merged into one map: a real academic subject
 // hierarchy (Science > Biology > Neuroscience > Neurobiology, etc.) rendered as a
@@ -87,12 +88,58 @@ function buildTree(rows) {
   return root || bySlug.root || { id: 'root', name: 'All Knowledge', cluster: 'root' }
 }
 
+// Dark-mode values are bright/pale, tuned to glow against the near-black canvas
+// background. Drawn at real size (node fills, edges, labels) rather than just a tinted
+// wash, those same values read as washed-out against the light-mode sky background
+// (see PALETTES.light.bg below) — so light mode gets its own darker, still-
+// recognizable-hue set, kept in step with mind.js's NEWS_DOMAIN_HEX for the same four
+// domains.
 const CLUSTER_RGB = {
   root: '148,163,184',
   science: '110,231,150',    // green
   technology: '96,190,250',  // blue/cyan
   business: '251,113,146',  // rose/red
   humanities: '192,145,252' // violet
+}
+const CLUSTER_RGB_LIGHT = {
+  root: '75,85,99',
+  science: '21,128,61',
+  technology: '21,104,168',
+  business: '184,48,90',
+  humanities: '124,79,209'
+}
+
+// The canvas paints its own pixels, so it can't just inherit Tailwind/CSS-variable
+// theming the way the rest of the site does — it needs its own light/dark palette,
+// read fresh every frame via a ref (same pattern as selectedRef/heatOnRef) so
+// toggling the site theme repaints instantly without rebuilding the force layout.
+const PALETTES = {
+  dark: {
+    bg: '5,6,8',
+    star: '226,232,240',
+    unlitNode: '148,163,184',
+    unlitLabel: '180,190,200',
+    litLabel: '255,255,255',
+    labelShadow: 'rgba(0,0,0,0.9)',
+    selectionRing: 'rgba(255,255,255,0.9)',
+    vignette: '0,0,0',
+    vignetteAlpha: 0.55,
+    unlitNodeAlpha: 0.35,
+    unlitEdgeAlpha: 0.12
+  },
+  light: {
+    bg: '223,231,238',
+    star: '90,102,115',
+    unlitNode: '100,112,128',
+    unlitLabel: '90,100,112',
+    litLabel: '20,22,26',
+    labelShadow: 'rgba(255,255,255,0.85)',
+    selectionRing: 'rgba(20,22,26,0.85)',
+    vignette: '70,80,95',
+    vignetteAlpha: 0.22,
+    unlitNodeAlpha: 0.45,
+    unlitEdgeAlpha: 0.16
+  }
 }
 
 function flatten(root) {
@@ -151,6 +198,12 @@ function hubRadius(depth) {
 function heatFor(notes) {
   return Math.min(1, 0.18 + notes * 0.1)
 }
+// A field-investigation concept with no captured notes of its own (see the
+// goalNotes/libReinforcement split below) sits here — bigger than a fully dim leaf so
+// it still reads as "known about," but deliberately below leafRadius(1), so a term the
+// cycle merely looked up once never matches the visual weight of an actual captured
+// note, regardless of how many cycles later re-touch it.
+const LIBRARY_ONLY_RADIUS = 5.5
 
 // Optional heat-gradient overlay (toggle in the header): a blue -> green -> yellow ->
 // orange -> red ramp over the same 0-1 heat value already used for node glow, so
@@ -195,7 +248,7 @@ function makeStars(count, spread) {
 
 function clamp(v, lo, hi) { return Math.min(hi, Math.max(lo, v)) }
 
-export default function KnowledgeGalaxy({ goals, topics }) {
+export default function KnowledgeGalaxy({ goals, topics, library }) {
   const canvasRef = useRef(null)
   const wrapRef = useRef(null)
   const [selected, setSelected] = useState(null)
@@ -211,9 +264,25 @@ export default function KnowledgeGalaxy({ goals, topics }) {
   const heatOnRef = useRef(true)
   useEffect(() => { heatOnRef.current = heatOn }, [heatOn])
 
+  // The canvas paints its own palette, so the site theme toggle needs the same
+  // read-fresh-every-frame ref pattern — flipping it must repaint next frame, not
+  // rebuild the force layout.
+  const { theme } = useTheme()
+  const themeRef = useRef(theme)
+  useEffect(() => { themeRef.current = theme }, [theme])
+
   // live join: taxonomy leaf `goalName` -> real inferred_goal row (notes/source_refs)
   const goalByName = {}
   ;(goals || []).forEach(g => { if (g.metadata?.name) goalByName[g.metadata.name] = g })
+
+  // Second, independent join: a node also counts as real interest if the field
+  // investigation has ever written a mind_knowledge_library entry whose title
+  // matches its name — an "inferred_goal" and a "recommendation"/library concept
+  // are different kinds (MIND_MODEL_BRIEF §4c/field_investigation_method) and a
+  // topic like Ontology can be genuinely investigated without ever becoming a
+  // standalone goal, so heat/lit shouldn't depend on goalName alone.
+  const libraryByTitle = {}
+  ;(library || []).forEach(e => { if (e.title) libraryByTitle[e.title.toLowerCase()] = e })
 
   useEffect(() => {
     const canvas = canvasRef.current
@@ -227,11 +296,30 @@ export default function KnowledgeGalaxy({ goals, topics }) {
     const { nodes, edges } = runForceLayout(buildTree(topics))
     nodes.forEach(n => {
       const g = n.ref.goalName ? goalByName[n.ref.goalName] : null
-      n.notes = g ? (g.source_refs?.length || 1) : 0
-      n.lit = n.notes > 0
-      n.heat = heatFor(n.notes)
-      n.r = n.ref.children ? hubRadius(n.depth) : leafRadius(n.notes)
+      const libEntry = libraryByTitle[n.ref.name.toLowerCase()] || null
+      const goalNotes = g ? (g.source_refs?.length || 1) : 0
+      const libReinforcement = libEntry ? Math.max(1, libEntry.cycle_count || 1) : 0
+      n.notes = goalNotes
+      n.lit = goalNotes > 0 || libReinforcement > 0
+      if (goalNotes > 0) {
+        // A real captured interest — size and heat scale with actual note count, plus
+        // any library reinforcement on top (it's already earned its size; more
+        // attention from the cycle just makes it glow warmer).
+        n.heat = heatFor(goalNotes + libReinforcement)
+        n.r = n.ref.children ? hubRadius(n.depth) : leafRadius(goalNotes)
+      } else if (libReinforcement > 0) {
+        // Investigated but never actually captured as a note — lit so it reads as
+        // known-about, but deliberately capped small and lukewarm no matter how many
+        // cycles reinforce it, so a single field-investigation lookup (Ontology, say)
+        // never renders as large or as hot as a genuine recurring interest.
+        n.heat = Math.min(0.4, heatFor(libReinforcement))
+        n.r = n.ref.children ? hubRadius(n.depth) : LIBRARY_ONLY_RADIUS
+      } else {
+        n.heat = 0
+        n.r = n.ref.children ? hubRadius(n.depth) : leafRadius(0)
+      }
       n.goal = g || null
+      n.libraryEntry = libEntry
     })
     const byId = {}
     nodes.forEach(n => { byId[n.ref.id] = n })
@@ -239,13 +327,18 @@ export default function KnowledgeGalaxy({ goals, topics }) {
     const minX = Math.min(...nodes.map(n => n.x - n.r)), maxX = Math.max(...nodes.map(n => n.x + n.r))
     const minY = Math.min(...nodes.map(n => n.y - n.r)), maxY = Math.max(...nodes.map(n => n.y + n.r))
     const bboxW = Math.max(40, maxX - minX), bboxH = Math.max(40, maxY - minY)
-    const stars = makeStars(220, Math.max(bboxW, bboxH) * 2.4)
+
+    // Populated once real dimensions + zoom bounds are known (see resize() below) —
+    // sized to always cover the worst-case (fully zoomed-out) viewport, not just the
+    // node bounding box, so stars never run out toward the screen edges.
+    let stars = []
 
     let width = 0, height = 0
     let zoom = 1, offsetX = 0, offsetY = 0, fitZoom = 1
     let raf, dragging = false, dragMoved = false, lastX = 0, lastY = 0
     let pinchDist = null
     let hasFitted = false
+    const MIN_ZOOM_FACTOR = 0.35 // must match zoomAt's lower clamp below
 
     function fitView() {
       if (width === 0 || height === 0) return
@@ -254,6 +347,23 @@ export default function KnowledgeGalaxy({ goals, topics }) {
       offsetX = width / 2 - (minX + bboxW / 2) * zoom
       offsetY = height / 2 - (minY + bboxH / 2) * zoom
       hasFitted = true
+    }
+
+    // The star field must be at least as large (in world units) as whatever the
+    // viewport can ever show — otherwise zooming all the way out (small zoom means
+    // more world-space visible per screen pixel) reveals bare canvas past the edge
+    // of the pre-generated field, which read as stars "disappearing" toward the
+    // left/right at minimum zoom. Recomputed on every resize so a later window
+    // resize (not just the initial mount) stays covered too.
+    function refreshStars() {
+      if (width === 0 || height === 0 || fitZoom === 0) return
+      const minZoom = fitZoom * MIN_ZOOM_FACTOR
+      const worstW = width / minZoom
+      const worstH = height / minZoom
+      const spread = Math.max(bboxW, bboxH, worstW, worstH) * 1.4
+      const density = 220 / (Math.max(bboxW, bboxH, 1) * 2.4) ** 2
+      const count = clamp(Math.round(density * spread * spread), 220, 900)
+      stars = makeStars(count, spread)
     }
 
     // Only auto-fit once, on the first real measurement — an explicit `hasFitted` flag
@@ -268,6 +378,7 @@ export default function KnowledgeGalaxy({ goals, topics }) {
       canvas.height = Math.max(1, Math.round(height * dpr))
       ctx.setTransform(dpr, 0, 0, dpr, 0, 0)
       if (!hasFitted) fitView()
+      refreshStars()
     }
     resize()
     const ro = new ResizeObserver(resize)
@@ -349,7 +460,9 @@ export default function KnowledgeGalaxy({ goals, topics }) {
 
     function draw(now) {
       if (width === 0 || height === 0) { raf = requestAnimationFrame(draw); return }
-      ctx.fillStyle = '#050608'
+      const pal = PALETTES[themeRef.current] || PALETTES.dark
+      const clusterRgb = themeRef.current === 'light' ? CLUSTER_RGB_LIGHT : CLUSTER_RGB
+      ctx.fillStyle = `rgb(${pal.bg})`
       ctx.fillRect(0, 0, width, height)
 
       // star field
@@ -358,7 +471,7 @@ export default function KnowledgeGalaxy({ goals, topics }) {
         const [sx, sy] = worldToScreen(s.x, s.y)
         if (sx < -10 || sx > width + 10 || sy < -10 || sy > height + 10) return
         const tw = reduced ? 0.6 : 0.45 + 0.4 * Math.sin(t * s.speed + s.phase)
-        ctx.fillStyle = `rgba(226,232,240,${(0.25 + tw * 0.5).toFixed(2)})`
+        ctx.fillStyle = `rgba(${pal.star},${(0.25 + tw * 0.5).toFixed(2)})`
         ctx.beginPath()
         ctx.arc(sx, sy, s.r, 0, Math.PI * 2)
         ctx.fill()
@@ -368,8 +481,8 @@ export default function KnowledgeGalaxy({ goals, topics }) {
       edges.forEach(([a, b]) => {
         const [ax, ay] = worldToScreen(a.x, a.y)
         const [bx, by] = worldToScreen(b.x, b.y)
-        const rgb = CLUSTER_RGB[b.ref.cluster] || CLUSTER_RGB.root
-        const alpha = b.lit ? 0.32 : 0.12
+        const rgb = clusterRgb[b.ref.cluster] || clusterRgb.root
+        const alpha = b.lit ? 0.32 : pal.unlitEdgeAlpha
         ctx.strokeStyle = `rgba(${rgb},${alpha})`
         ctx.lineWidth = Math.max(0.6, 1 * zoom / fitZoom)
         ctx.beginPath()
@@ -381,7 +494,7 @@ export default function KnowledgeGalaxy({ goals, topics }) {
       nodes.forEach(n => {
         const [sx, sy] = worldToScreen(n.x, n.y)
         if (sx < -40 || sx > width + 40 || sy < -40 || sy > height + 40) return
-        const rgb = CLUSTER_RGB[n.ref.cluster] || CLUSTER_RGB.root
+        const rgb = clusterRgb[n.ref.cluster] || clusterRgb.root
         const r = n.r * zoom
         if (n.lit) {
           ctx.shadowColor = `rgba(${rgb},0.9)`
@@ -389,14 +502,14 @@ export default function KnowledgeGalaxy({ goals, topics }) {
           ctx.fillStyle = `rgba(${rgb},${0.55 + n.heat * 0.4})`
         } else {
           ctx.shadowBlur = 0
-          ctx.fillStyle = n.ref.children ? `rgba(${rgb},0.28)` : 'rgba(148,163,184,0.35)'
+          ctx.fillStyle = n.ref.children ? `rgba(${rgb},0.28)` : `rgba(${pal.unlitNode},${pal.unlitNodeAlpha})`
         }
         ctx.beginPath()
         ctx.arc(sx, sy, Math.max(1, r), 0, Math.PI * 2)
         ctx.fill()
         ctx.shadowBlur = 0
         if (selectedRef.current === n) {
-          ctx.strokeStyle = 'rgba(255,255,255,0.9)'
+          ctx.strokeStyle = pal.selectionRing
           ctx.lineWidth = 1.5
           ctx.beginPath()
           ctx.arc(sx, sy, Math.max(1, r) + 4, 0, Math.PI * 2)
@@ -437,9 +550,9 @@ export default function KnowledgeGalaxy({ goals, topics }) {
         const screenR = n.r * zoom
         if (screenR > 9 || (n.lit && screenR > 5)) {
           ctx.font = n.lit ? '600 12px -apple-system,system-ui,sans-serif' : '400 11px -apple-system,system-ui,sans-serif'
-          ctx.fillStyle = n.lit ? 'rgba(255,255,255,0.95)' : 'rgba(180,190,200,0.55)'
+          ctx.fillStyle = n.lit ? `rgba(${pal.litLabel},0.95)` : `rgba(${pal.unlitLabel},0.55)`
           ctx.textAlign = 'center'
-          ctx.shadowColor = 'rgba(0,0,0,0.9)'
+          ctx.shadowColor = pal.labelShadow
           ctx.shadowBlur = 6
           ctx.fillText(n.ref.name, sx, sy + Math.max(1, r) + 14)
           ctx.shadowBlur = 0
@@ -448,8 +561,8 @@ export default function KnowledgeGalaxy({ goals, topics }) {
 
       // vignette
       const vg = ctx.createRadialGradient(width / 2, height / 2, Math.min(width, height) * 0.35, width / 2, height / 2, Math.max(width, height) * 0.7)
-      vg.addColorStop(0, 'rgba(0,0,0,0)')
-      vg.addColorStop(1, 'rgba(0,0,0,0.55)')
+      vg.addColorStop(0, `rgba(${pal.vignette},0)`)
+      vg.addColorStop(1, `rgba(${pal.vignette},${pal.vignetteAlpha})`)
       ctx.fillStyle = vg
       ctx.fillRect(0, 0, width, height)
 
@@ -469,7 +582,7 @@ export default function KnowledgeGalaxy({ goals, topics }) {
       canvas.removeEventListener('touchend', onTouchEnd)
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [goals, topics])
+  }, [goals, topics, library])
 
   return (
     <div className="card overflow-hidden p-0">
@@ -494,11 +607,21 @@ export default function KnowledgeGalaxy({ goals, topics }) {
           <div className="flex items-start justify-between gap-3">
             <div>
               <p className="text-sm font-medium text-mist-100">{selected.ref.name}</p>
-              <p className="text-xs text-mist-500">{selected.notes} note{selected.notes === 1 ? '' : 's'}</p>
+              <p className="text-xs text-mist-500">
+                {selected.goal
+                  ? `${selected.notes} note${selected.notes === 1 ? '' : 's'}`
+                  : selected.libraryEntry
+                    ? `explored ${selected.libraryEntry.cycle_count}× via field investigation`
+                    : 'no evidence yet'}
+              </p>
             </div>
             <button onClick={() => setSelected(null)} className="text-xs text-mist-500 hover:text-mist-300">close</button>
           </div>
-          {selected.goal?.summary && <p className="mt-2 text-xs leading-relaxed text-mist-300">{selected.goal.summary}</p>}
+          {selected.goal?.summary ? (
+            <p className="mt-2 text-xs leading-relaxed text-mist-300">{selected.goal.summary}</p>
+          ) : selected.libraryEntry?.summary ? (
+            <p className="mt-2 text-xs leading-relaxed text-mist-300">{selected.libraryEntry.summary}</p>
+          ) : null}
           {selected.goal?.source_refs?.length > 0 && (
             <ul className="mt-2 space-y-1 border-t border-ink-700 pt-2">
               {selected.goal.source_refs.filter(r => r.type === 'note').map((ref, i) => (

@@ -5,6 +5,7 @@ import KnowledgeGalaxy from '../components/KnowledgeGalaxy'
 import Onboarding from '../components/Onboarding'
 import ProductivityTab from '../components/ProductivityTab'
 import TourOverlay from '../components/TourOverlay'
+import { useTheme } from '../components/ThemeProvider'
 import { requireSessionSSR } from '../lib/pageAuth'
 import { embedPendingNotes } from '../lib/clientEmbeddings'
 
@@ -52,11 +53,22 @@ function isFeedRenderer(def) {
 // mind_taxonomy row), so the ticker infers one from the summary text via keyword match,
 // keyed to the same science/technology/business/humanities clusters + colors as the
 // knowledge galaxy (components/KnowledgeGalaxy.js CLUSTER_RGB) for a consistent palette.
+// Dark-mode values are bright/pale — meant to glow against a near-black ticker strip.
+// Drawn directly as link text (not a tinted background), those same values measure
+// well under 4.5:1 against a light/cream page, so light mode gets its own darker,
+// still-recognizable-hue set. Kept in step with KnowledgeGalaxy.js's CLUSTER_RGB,
+// which faces the identical dark-glow-vs-light-page problem for the same four domains.
 const NEWS_DOMAIN_HEX = {
   science: '#6ee796',
   technology: '#60bef9',
   business: '#fb7192',
   humanities: '#c091fc'
+}
+const NEWS_DOMAIN_HEX_LIGHT = {
+  science: '#15803d',
+  technology: '#1568a8',
+  business: '#b8305a',
+  humanities: '#7c4fd1'
 }
 const NEWS_DOMAIN_KEYWORDS = {
   science: ['brain', 'neuro', 'protein', 'cortex', 'biology', 'physics', 'chemistry', 'gene', 'cell', 'species', 'climate', 'quantum', 'cosmic', 'space', 'astronom', 'medicine', 'disease', 'vaccine', 'clinical', 'psycholog', 'cognit', 'evolution', 'ecolog', 'memory', 'decision', 'alzheimer'],
@@ -244,10 +256,16 @@ const GOAL_SHAFT_W = 34
 const GOAL_NOTCH = 14
 const GOAL_TARGET_R = 48
 const GOAL_SPINE_X = GOAL_VW / 2
+// The spine/arrowhead/target shapes are always violet (see GOAL_PLATE_COLORS below) —
+// reads the CSS variable directly so it tracks the theme's already-contrast-corrected
+// violet-400 instead of a hex frozen at the dark-mode value.
+const GOAL_VIOLET = 'rgb(var(--violet-400))'
 
 // Each goal plate gets its own color (cycling through the app's existing accent family)
 // so distinct goals are visually distinct at a glance, not just by number/title text.
-const GOAL_PLATE_COLORS = [ACCENT_HEX.violet, ACCENT_HEX.gold, ACCENT_HEX.emerald, ACCENT_HEX.rose, ACCENT_HEX.mist]
+// Violet is excluded here — the fixed spine/arrowhead/target shapes below are always
+// violet, so a plate in that same color would be indistinguishable from the structure.
+const GOAL_PLATE_COLORS = [ACCENT_HEX.gold, ACCENT_HEX.emerald, ACCENT_HEX.rose, ACCENT_HEX.mist, '#f0a3c4']
 function goalPlateColor(i) {
   return GOAL_PLATE_COLORS[i % GOAL_PLATE_COLORS.length]
 }
@@ -288,7 +306,7 @@ function GoalRibbon({ goal, num, side, rowCenterY, active, onClick, color }) {
         {num}
       </text>
       <text x={titleX} y={rowCenterY} textAnchor={side === 'left' ? 'start' : 'end'} dominantBaseline="central"
-        fill={active ? '#f2f0ff' : '#c7cbd1'} style={{ fontSize: 15, fontWeight: 500 }}>
+        style={{ fontSize: 15, fontWeight: 500, fill: active ? 'rgb(var(--mist-100))' : 'rgb(var(--mist-300))' }}>
         {title}
       </text>
     </g>
@@ -335,7 +353,7 @@ function GoalArrowChart({ goals }) {
       <svg viewBox={`0 0 ${GOAL_VW} ${totalHeight}`} className="w-full" style={{ maxHeight: 420 }}>
         <polygon
           points={`${GOAL_SPINE_X},${GOAL_TOP_PAD} ${GOAL_SPINE_X - GOAL_HEAD_W / 2},${GOAL_TOP_PAD + GOAL_HEAD_H} ${GOAL_SPINE_X + GOAL_HEAD_W / 2},${GOAL_TOP_PAD + GOAL_HEAD_H}`}
-          fill="#b7a6f7" fillOpacity="0.85"
+          fill={GOAL_VIOLET} fillOpacity="0.85"
         />
         {Array.from({ length: rows }, (_, i) => {
           const topY = GOAL_TOP_PAD + GOAL_HEAD_H + i * GOAL_ROW_H
@@ -345,16 +363,16 @@ function GoalArrowChart({ goals }) {
           return (
             <path key={i}
               d={`M ${sx0},${topY} L ${sx1},${topY} L ${sx1},${botY - GOAL_NOTCH} L ${GOAL_SPINE_X},${botY} L ${sx0},${botY - GOAL_NOTCH} Z`}
-              fill="#b7a6f7" fillOpacity={i % 2 === 0 ? 0.55 : 0.4} stroke="#b7a6f7" strokeOpacity="0.3"
+              fill={GOAL_VIOLET} fillOpacity={i % 2 === 0 ? 0.55 : 0.4} stroke={GOAL_VIOLET} strokeOpacity="0.3"
             />
           )
         })}
-        <line x1={GOAL_SPINE_X} y1={shaftBottomY} x2={GOAL_SPINE_X} y2={targetCenterY - GOAL_TARGET_R} stroke="#b7a6f7" strokeOpacity="0.5" strokeWidth="3" />
+        <line x1={GOAL_SPINE_X} y1={shaftBottomY} x2={GOAL_SPINE_X} y2={targetCenterY - GOAL_TARGET_R} stroke={GOAL_VIOLET} strokeOpacity="0.5" strokeWidth="3" />
 
-        <ellipse cx={GOAL_SPINE_X} cy={targetCenterY + 6} rx={GOAL_TARGET_R + 14} ry={(GOAL_TARGET_R + 14) * 0.32} fill="#b7a6f7" fillOpacity="0.08" />
-        <circle cx={GOAL_SPINE_X} cy={targetCenterY} r={GOAL_TARGET_R} fill="none" stroke="#b7a6f7" strokeOpacity="0.35" strokeWidth="6" />
-        <circle cx={GOAL_SPINE_X} cy={targetCenterY} r={GOAL_TARGET_R * 0.62} fill="none" stroke="#b7a6f7" strokeOpacity="0.55" strokeWidth="6" />
-        <circle cx={GOAL_SPINE_X} cy={targetCenterY} r={GOAL_TARGET_R * 0.26} fill="#b7a6f7" fillOpacity="0.85" />
+        <ellipse cx={GOAL_SPINE_X} cy={targetCenterY + 6} rx={GOAL_TARGET_R + 14} ry={(GOAL_TARGET_R + 14) * 0.32} fill={GOAL_VIOLET} fillOpacity="0.08" />
+        <circle cx={GOAL_SPINE_X} cy={targetCenterY} r={GOAL_TARGET_R} fill="none" stroke={GOAL_VIOLET} strokeOpacity="0.35" strokeWidth="6" />
+        <circle cx={GOAL_SPINE_X} cy={targetCenterY} r={GOAL_TARGET_R * 0.62} fill="none" stroke={GOAL_VIOLET} strokeOpacity="0.55" strokeWidth="6" />
+        <circle cx={GOAL_SPINE_X} cy={targetCenterY} r={GOAL_TARGET_R * 0.26} fill={GOAL_VIOLET} fillOpacity="0.85" />
 
         {Array.from({ length: rows }, (_, i) => {
           const rowCenterY = GOAL_TOP_PAD + GOAL_HEAD_H + i * GOAL_ROW_H + GOAL_ROW_H / 2
@@ -527,7 +545,7 @@ function PathDiagram({ path }) {
       <svg viewBox={`0 0 ${width} ${height}`} style={{ width: '100%', maxWidth: width, display: 'block', margin: '0 auto' }}>
         <defs>
           <marker id="path-arrow" viewBox="0 0 8 8" refX="7" refY="4" markerWidth="6" markerHeight="6" orient="auto-start-reverse">
-            <path d="M0,0 L8,4 L0,8 z" fill="#5c6570" />
+            <path d="M0,0 L8,4 L0,8 z" fill="rgb(var(--mist-400))" />
           </marker>
         </defs>
         {edges.map((e, i) => {
@@ -537,7 +555,7 @@ function PathDiagram({ path }) {
           const midY = (y1 + y2) / 2
           return (
             <path key={i} d={`M ${x1},${y1} C ${x1},${midY} ${x2},${midY} ${x2},${y2}`}
-              fill="none" stroke="#5c6570" strokeOpacity="0.6" strokeWidth="1.5" markerEnd="url(#path-arrow)" />
+              fill="none" stroke="rgb(var(--mist-400))" strokeOpacity="0.6" strokeWidth="1.5" markerEnd="url(#path-arrow)" />
           )
         })}
         {nodes.map(n => {
@@ -550,7 +568,7 @@ function PathDiagram({ path }) {
                 fill={fill} fillOpacity={isActive ? 0.28 : 0.12}
                 stroke={fill} strokeOpacity={isActive ? 0.9 : 0.5} strokeWidth={isActive ? 2 : 1.5} />
               <foreignObject x={p.x + 8} y={p.y + 6} width={PATH_NODE_W - 16} height={PATH_NODE_H - 12}>
-                <div xmlns="http://www.w3.org/1999/xhtml" style={{ display: 'flex', height: '100%', alignItems: 'center', justifyContent: 'center', textAlign: 'center', fontSize: 12, lineHeight: 1.25, color: '#e7ebf0' }}>
+                <div xmlns="http://www.w3.org/1999/xhtml" style={{ display: 'flex', height: '100%', alignItems: 'center', justifyContent: 'center', textAlign: 'center', fontSize: 12, lineHeight: 1.25, color: 'rgb(var(--mist-100))' }}>
                   {n.label}
                 </div>
               </foreignObject>
@@ -742,8 +760,8 @@ function ParaDonut({ para }) {
             return el
           })}
         </g>
-        <text x="75" y="72" textAnchor="middle" fill="#e7e9eb" style={{ fontSize: 24, fontWeight: 500 }}>{total}</text>
-        <text x="75" y="90" textAnchor="middle" fill="#a7aeb5" style={{ fontSize: 10, letterSpacing: 1.5 }}>NOTES</text>
+        <text x="75" y="72" textAnchor="middle" style={{ fontSize: 24, fontWeight: 500, fill: 'rgb(var(--mist-100))' }}>{total}</text>
+        <text x="75" y="90" textAnchor="middle" style={{ fontSize: 10, letterSpacing: 1.5, fill: 'rgb(var(--mist-300))' }}>NOTES</text>
       </svg>
       <ul className="space-y-1.5">
         {buckets.map(b => (
@@ -877,18 +895,18 @@ function AttentionChart({ series, caption }) {
       <svg viewBox={`0 0 ${W} ${H}`} className="w-full">
         {[0, niceMax / 2, niceMax].map((g, i) => (
           <g key={i}>
-            <line x1={padL} x2={W - padR} y1={y(g)} y2={y(g)} stroke="rgba(255,255,255,0.08)" />
-            <text x={padL - 6} y={y(g) + 3} textAnchor="end" fill="#a7aeb5" style={{ fontSize: 10 }}>{g}</text>
+            <line x1={padL} x2={W - padR} y1={y(g)} y2={y(g)} stroke="rgb(var(--mist-500) / 0.18)" />
+            <text x={padL - 6} y={y(g) + 3} textAnchor="end" style={{ fontSize: 10, fill: 'rgb(var(--mist-300))' }}>{g}</text>
           </g>
         ))}
-        <polyline points={line} fill="none" stroke="#5eead4" strokeWidth="2" strokeLinejoin="round" strokeLinecap="round" />
+        <polyline points={line} fill="none" stroke="rgb(var(--emerald-400))" strokeWidth="2" strokeLinejoin="round" strokeLinecap="round" />
         {pts.map((p, i) => (
           <circle key={i} cx={x(i)} cy={y(p.count)} r={i === peakIdx ? 4 : 2.5}
-            fill={i === peakIdx ? '#f0d9a3' : '#5eead4'} stroke="#0b0f14" strokeWidth="1" />
+            fill={i === peakIdx ? 'rgb(var(--gold-400))' : 'rgb(var(--emerald-400))'} stroke="rgb(var(--ink-900))" strokeWidth="1" />
         ))}
-        <text x={x(peakIdx)} y={y(pts[peakIdx].count) - 8} textAnchor="middle" fill="#f0d9a3" style={{ fontSize: 10 }}>peak {pts[peakIdx].count}</text>
+        <text x={x(peakIdx)} y={y(pts[peakIdx].count) - 8} textAnchor="middle" style={{ fontSize: 10, fill: 'rgb(var(--gold-400))' }}>peak {pts[peakIdx].count}</text>
         {labelIdx.map(i => (
-          <text key={i} x={x(i)} y={H - 4} textAnchor="middle" fill="#a7aeb5" style={{ fontSize: 9 }}>
+          <text key={i} x={x(i)} y={H - 4} textAnchor="middle" style={{ fontSize: 9, fill: 'rgb(var(--mist-300))' }}>
             {shortDateLabel(pts[i].day)}
           </text>
         ))}
@@ -898,7 +916,7 @@ function AttentionChart({ series, caption }) {
   )
 }
 
-function OverviewTab({ data, loading, running, runStage, runNow, refreshPrompt, cycle, feedItems, stats, topics }) {
+function OverviewTab({ data, loading, running, runStage, runNow, refreshPrompt, cycle, feedItems, stats, topics, library }) {
   const hasAnything = data && (data.overview || [...KIND_ORDER, 'user_model', 'recommendation'].some(k => data.byKind[k]?.length))
   const recommendations = data ? data.byKind.recommendation || [] : []
   const runLabel = runStage === 'embedding' ? 'Indexing notes…' : runStage === 'synthesizing' ? 'Running…' : 'Run now'
@@ -946,7 +964,7 @@ function OverviewTab({ data, loading, running, runStage, runNow, refreshPrompt, 
           </div>
 
           <div className="mt-6">
-            <KnowledgeGalaxy goals={data.byKind.inferred_goal} topics={topics} />
+            <KnowledgeGalaxy goals={data.byKind.inferred_goal} topics={topics} library={library} />
           </div>
 
           <div className="mt-6">
@@ -1086,7 +1104,9 @@ function ParaFunTab({ queue, loading, onAnswer, submitting }) {
 // real source URL. Pauses on hover.
 function NewsStrip({ items }) {
   const [paused, setPaused] = useState(false)
+  const { theme } = useTheme()
   if (!items?.length) return null
+  const domainHex = theme === 'light' ? NEWS_DOMAIN_HEX_LIGHT : NEWS_DOMAIN_HEX
   const animate = items.length > 1 && !paused
   const track = items.length > 1 ? [...items, ...items] : items // duplicate for a seamless loop
   return (
@@ -1100,7 +1120,7 @@ function NewsStrip({ items }) {
           {track.map((it, i) => {
             const url = (it.source_refs || []).find(r => r.type === 'resource' && r.url)?.url
             const domain = classifyNewsDomain(it.summary)
-            const color = domain ? NEWS_DOMAIN_HEX[domain] : '#c7ccd1'
+            const color = domain ? domainHex[domain] : 'rgb(var(--mist-300))'
             return (
               <span key={i} className="flex shrink-0 items-center">
                 {url ? (
@@ -1422,6 +1442,7 @@ export default function Mind({ user }) {
   const [queueLoading, setQueueLoading] = useState(true)
   const [sections, setSections] = useState([])
   const [topics, setTopics] = useState([])
+  const [libraryEntries, setLibraryEntries] = useState([])
   const [cycles, setCycles] = useState(null)
   const [stats, setStats] = useState(null)
   const [submitting, setSubmitting] = useState(false)
@@ -1471,6 +1492,17 @@ export default function Mind({ user }) {
       .catch(() => setTopics([]))
   }
 
+  // The durable field-investigation archive (mind_knowledge_library) — the galaxy
+  // joins this by title alongside inferred_goal so a genuinely investigated topic
+  // (e.g. Ontology, surfaced as a "recommendation"/concept, not a standalone goal)
+  // still lights up and gets a heat gradient instead of sitting dim forever.
+  function loadLibrary() {
+    return fetch('/api/mind/library')
+      .then(r => r.json())
+      .then(({ entries }) => setLibraryEntries(entries || []))
+      .catch(() => setLibraryEntries([]))
+  }
+
   // §4k: cycle-run history for the health card — read-only, refreshed after Run now too.
   function loadCycles() {
     return fetch('/api/mind/cycles')
@@ -1499,6 +1531,7 @@ export default function Mind({ user }) {
     loadQueue()
     loadSections()
     loadTopics()
+    loadLibrary()
     loadCycles()
     loadStats()
     loadOnboarding()
@@ -1553,7 +1586,7 @@ export default function Mind({ user }) {
   if (!onboarding.onboarded) {
     return (
       <Layout user={user}>
-        <Onboarding onComplete={() => { setOnboarding({ onboarded: true }); load(); loadQueue(); loadSections(); loadTopics(); loadCycles(); loadStats() }} />
+        <Onboarding onComplete={() => { setOnboarding({ onboarded: true }); load(); loadQueue(); loadSections(); loadTopics(); loadLibrary(); loadCycles(); loadStats() }} />
       </Layout>
     )
   }
@@ -1598,7 +1631,7 @@ export default function Mind({ user }) {
       </div>
 
       {tab === 'overview' ? (
-        <OverviewTab data={data} loading={loading} running={running} runStage={runStage} runNow={runNow} refreshPrompt={refreshPrompt} cycle={cycles} feedItems={feedItems} stats={stats} topics={topics} />
+        <OverviewTab data={data} loading={loading} running={running} runStage={runStage} runNow={runNow} refreshPrompt={refreshPrompt} cycle={cycles} feedItems={feedItems} stats={stats} topics={topics} library={libraryEntries} />
       ) : tab === 'library' ? (
         <KnowledgeLibraryTab />
       ) : tab === 'planner' ? (

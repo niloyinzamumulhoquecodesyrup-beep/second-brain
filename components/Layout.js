@@ -1,6 +1,7 @@
 import { useRouter } from 'next/router'
 import Link from 'next/link'
 import { useState } from 'react'
+import ThemeToggle from './ThemeToggle'
 
 const NAV_ITEMS = [
   { href: '/', label: 'Dashboard' },
@@ -9,7 +10,8 @@ const NAV_ITEMS = [
   { href: '/distill', label: 'Distill' },
   { href: '/express', label: 'Express' },
   { href: '/focus', label: 'Focus' },
-  { href: '/mind', label: 'Mind' }
+  { href: '/mind', label: 'Mind' },
+  { href: '/other-brains', label: 'Other Brains' }
 ]
 
 export default function Layout({ children, user }) {
@@ -41,7 +43,7 @@ export default function Layout({ children, user }) {
                   key={item.href}
                   href={item.href}
                   className={`text-[13px] uppercase tracking-[0.14em] transition ${
-                    active ? 'text-emerald-300' : 'text-mist-300 hover:text-white'
+                    active ? 'text-emerald-300' : 'text-mist-300 hover:text-mist-100'
                   }`}
                 >
                   {item.label}
@@ -52,6 +54,7 @@ export default function Layout({ children, user }) {
 
           <div className="flex items-center gap-4">
             {user && <span className="hidden text-xs text-mist-400 sm:inline">{user.email}</span>}
+            <ThemeToggle />
             <button onClick={logout} disabled={loggingOut} className="btn-secondary !px-4 !py-1.5 text-xs">
               {loggingOut ? 'Signing out…' : 'Sign out'}
             </button>

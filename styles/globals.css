@@ -5,14 +5,143 @@
 @tailwind utilities;
 
 @layer base {
+  /* Dark is the default (matches the app's original look) and also the fallback if
+     pages/_document.js's blocking script hasn't run yet for some reason. Every value
+     is an "R G B" triplet (no commas) so Tailwind's rgb(var(...) / <alpha-value>)
+     color functions in tailwind.config.js can apply opacity modifiers. */
+  :root {
+    --ink-950: 5 6 7;
+    --ink-900: 10 12 14;
+    --ink-800: 17 20 23;
+    --ink-700: 24 28 32;
+    --ink-600: 34 39 44;
+    --ink-500: 44 50 56;
+
+    --mist-100: 231 233 235;
+    --mist-200: 199 204 209;
+    --mist-300: 167 174 181;
+    --mist-400: 138 146 155;
+    --mist-500: 106 113 122;
+
+    --emerald-200: 167 243 208;
+    --emerald-300: 110 231 183;
+    --emerald-400: 94 234 212;
+    --emerald-500: 45 212 191;
+    --emerald-600: 20 184 166;
+
+    --violet-100: 237 233 254;
+    --violet-200: 221 214 254;
+    --violet-300: 196 181 253;
+    --violet-400: 183 166 247;
+    --violet-500: 167 139 250;
+    --violet-600: 139 110 242;
+
+    --gold-200: 250 235 200;
+    --gold-300: 245 220 160;
+    --gold-400: 240 217 163;
+    --gold-500: 224 192 126;
+    --gold-600: 201 163 94;
+
+    --aura-1: 167 139 250;
+    --aura-2: 224 192 126;
+    --aura-3: 45 212 191;
+    --aura-opacity: 1;
+
+    /* Tailwind's own default rose/orange/red, matched exactly — the Inbox banner,
+       Focus page accent, and error/overdue text used these straight from Tailwind's
+       palette rather than a custom family, so they never got a light-mode override. */
+    --rose-200: 254 205 211;
+    --rose-300: 253 164 175;
+    --rose-400: 251 113 133;
+    --rose-500: 244 63 94;
+
+    --orange-200: 254 215 170;
+    --orange-300: 253 186 116;
+    --orange-400: 251 146 60;
+
+    --red-400: 248 113 113;
+  }
+
+  /* Neutrals invert (ink-950 becomes the lightest surface, mist-100 becomes the
+     darkest text) so every existing bg-ink-950/text-mist-400/etc. class across the
+     whole site just works in both themes without being touched page-by-page.
+     Accent hues (emerald/violet/gold) get genuinely darker variants here, not just
+     inverted lightness — the light pastel dark-mode values would fail contrast
+     against a bright page. */
+  :root[data-theme='light'] {
+    --ink-950: 250 249 246;
+    --ink-900: 255 255 255;
+    --ink-800: 243 241 235;
+    --ink-700: 231 227 217;
+    --ink-600: 216 211 197;
+    --ink-500: 196 188 166;
+
+    /* mist-400 is the app's workhorse muted-text color (descriptions, timestamps,
+       helper copy) — its first light-mode value (116 112 97) only just cleared 4.5:1
+       against a white card, reading as washed-out at the small/light weights it's
+       usually set in. mist-500 similarly reworked to stay legible while still the
+       dimmest tier. */
+    --mist-100: 26 26 23;
+    --mist-200: 51 49 43;
+    --mist-300: 82 79 69;
+    --mist-400: 95 91 79;
+    --mist-500: 122 117 100;
+
+    /* emerald-400 backs the .label class used on nearly every section heading
+       ("Overview", "Right now", "Interest clusters", ...) — its first light-mode
+       value (13 148 136) measured ~3.7:1 against white, below the 4.5:1 a 13px label
+       needs. Darkened this and the neighboring shades actually used as text
+       (violet-300, gold-300/400) the same way; 200/500/600 already had good contrast
+       and are unchanged. */
+    --emerald-200: 6 95 70;
+    --emerald-300: 3 100 72;
+    --emerald-400: 15 118 110;
+    --emerald-500: 12 95 89;
+    --emerald-600: 10 74 69;
+
+    --violet-100: 124 58 237;
+    --violet-200: 109 40 217;
+    --violet-300: 100 50 220;
+    --violet-400: 124 58 237;
+    --violet-500: 109 40 217;
+    --violet-600: 91 33 182;
+
+    --gold-200: 120 84 12;
+    --gold-300: 120 86 12;
+    --gold-400: 133 100 20;
+    --gold-500: 110 83 16;
+    --gold-600: 85 64 13;
+
+    --aura-1: 124 58 237;
+    --aura-2: 168 124 24;
+    --aura-3: 13 148 136;
+    --aura-opacity: 0.35;
+
+    /* Darkened enough to clear 4.5:1 on a white card — rose-300/orange-300 are the
+       most-used-as-text shades (Inbox count/link, Focus labels) so get the most
+       scrutiny; 500 is only ever used as a faint background tint (bg-rose-500/5) so
+       its exact darkness matters less. */
+    --rose-200: 157 23 77;
+    --rose-300: 190 18 60;
+    --rose-400: 209 38 79;
+    --rose-500: 136 19 55;
+
+    --orange-200: 154 52 18;
+    --orange-300: 194 65 12;
+    --orange-400: 180 83 9;
+
+    --red-400: 185 28 28;
+  }
+
   html {
-    background: #050607;
+    background: rgb(var(--ink-950));
   }
 
   body {
     @apply bg-ink-950 text-mist-100 antialiased;
     font-family: 'Inter', system-ui, -apple-system, sans-serif;
     line-height: 1.6;
+    transition: background-color 0.2s ease, color 0.2s ease;
   }
 
   h1, h2, h3, .font-serif {
@@ -58,7 +187,7 @@
   }
 
   .btn-secondary {
-    @apply inline-flex items-center justify-center gap-2 rounded-md border border-ink-500 px-5 py-2.5 text-sm font-medium text-mist-200 transition hover:border-mist-300/60 hover:text-white;
+    @apply inline-flex items-center justify-center gap-2 rounded-md border border-ink-500 px-5 py-2.5 text-sm font-medium text-mist-200 transition hover:border-mist-300/60 hover:text-mist-100;
   }
 
   .btn-ghost {
@@ -93,17 +222,20 @@
     inset: 0;
     z-index: -1;
     pointer-events: none;
+    /* --aura-opacity is lower in light mode (see :root[data-theme='light']) — the
+       same blob opacities that read as a moody glow on near-black would just look
+       like a muddy stain on a bright page. */
     background:
-      radial-gradient(480px circle at 12% 0%, rgba(167, 139, 250, 0.16), transparent 60%),
-      radial-gradient(420px circle at 88% 8%, rgba(224, 192, 126, 0.14), transparent 55%),
-      radial-gradient(560px circle at 50% 100%, rgba(45, 212, 191, 0.12), transparent 60%);
+      radial-gradient(480px circle at 12% 0%, rgb(var(--aura-1) / calc(0.16 * var(--aura-opacity))), transparent 60%),
+      radial-gradient(420px circle at 88% 8%, rgb(var(--aura-2) / calc(0.14 * var(--aura-opacity))), transparent 55%),
+      radial-gradient(560px circle at 50% 100%, rgb(var(--aura-3) / calc(0.12 * var(--aura-opacity))), transparent 60%);
   }
 
   .scrollbar-thin::-webkit-scrollbar {
     width: 6px;
   }
   .scrollbar-thin::-webkit-scrollbar-thumb {
-    background: #22272c;
+    background: rgb(var(--ink-500));
     border-radius: 999px;
   }
 }

@@ -2,6 +2,7 @@ import { useState } from 'react'
 import { useRouter } from 'next/router'
 import Link from 'next/link'
 import { getSessionFromReq } from '../lib/auth'
+import ThemeToggle from '../components/ThemeToggle'
 
 export default function Login() {
   const router = useRouter()
@@ -34,7 +35,8 @@ export default function Login() {
   }
 
   return (
-    <div className="flex min-h-screen items-center justify-center bg-ink-950 bg-aura px-6">
+    <div className="relative flex min-h-screen items-center justify-center bg-ink-950 bg-aura px-6">
+      <ThemeToggle className="absolute right-6 top-6" />
       <div className="w-full max-w-sm">
         <div className="mb-10 text-center">
           <div className="mx-auto mb-4 flex h-11 w-11 items-center justify-center rounded-full border border-emerald-400/50 bg-gradient-to-br from-emerald-500/20 via-violet-500/10 to-gold-500/20 font-serif text-sm text-emerald-300">

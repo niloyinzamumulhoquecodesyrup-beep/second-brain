@@ -43,6 +43,22 @@ Set `goal_name` only on the one leaf that corresponds exactly to a live `inferre
 dedicated live goal yet — should leave `goal_name` null. That is correct, not a gap: the map is supposed
 to show the dim shape of fields nothing has lit up yet, same as the original hardcoded seed did.
 
+## Being investigated is not the same evidence as being a rich branch
+
+`field_investigation_method` can write a detailed `mind_knowledge_library` entry for a term the user has
+barely touched — one passing mention was enough to justify looking it up, even though it's nowhere near
+the recurrence bar this doc sets for growing the tree. The map's renderer joins a leaf to its library
+entry (by matching title) as a *second*, independent way a node can light up alongside `goal_name`, so
+that genuinely-investigated-but-not-yet-a-goal topics (Ontology, say) show up as known rather than sitting
+permanently dim. But it sizes that join conservatively on purpose: a concept revisited across several
+cycles (bumping `cycle_count`) renders as a small, lit leaf regardless of how many times it's been
+reinforced, never scaling up to look like a real branch of captured notes the way a `goal_name` match
+with several `source_refs` does. Don't try to compensate for this from the data side — a library entry
+being detailed (philosophers, related concepts, a full `metadata.detail`) is not itself grounds to place
+its node any less conservatively than the recurrence rule above already requires, or to give it
+`goal_name`/children it hasn't earned. If a topic genuinely does become a recurring interest later, that
+shows up as real notes and a real `inferred_goal` — let the tree catch up then, not preemptively now.
+
 ## Retiring a node
 
 Never delete a row. If a topic has clearly been abandoned long enough that it would otherwise qualify as
