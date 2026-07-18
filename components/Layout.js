@@ -11,7 +11,7 @@ const NAV_ITEMS = [
   { href: '/express', label: 'Express' },
   { href: '/focus', label: 'Focus' },
   { href: '/mind', label: 'Mind' },
-  { href: '/other-brains', label: 'Other Brains' }
+  { href: '/other-brains', label: 'MINDVERSE' }
 ]
 
 export default function Layout({ children, user }) {

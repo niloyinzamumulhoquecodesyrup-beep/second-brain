@@ -7,7 +7,7 @@ export default function OtherBrains({ user }) {
     <Layout user={user}>
       <div className="mb-8">
         <p className="label mb-2">Cross-account, anonymous</p>
-        <h1 className="font-serif text-4xl font-light text-mist-100">Other Brains</h1>
+        <h1 className="font-serif text-4xl font-light text-mist-100">MINDVERSE</h1>
       </div>
       <OtherBrainsTab />
     </Layout>
