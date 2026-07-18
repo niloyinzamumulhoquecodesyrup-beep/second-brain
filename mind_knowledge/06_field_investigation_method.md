@@ -17,23 +17,25 @@ precedes both, the concept/definition shape neither covers, and the durable-memo
    the surrounding structure — definitions, the field/branch something belongs to, the people who
    originated or shaped it, how it connects to adjacent concepts — the same real-research posture
    `02_resource_research_method.md` already requires for course-finding, applied to concept-learning too.
-2. **Filter** — not everything investigated is worth writing. Before producing a finding, check: is this
-   genuinely new (not already sitting in `mind_knowledge_library` for this user, or already covered by an
-   existing note), and does it clear a real bar of usefulness (would a knowledgeable person consider this
-   worth knowing, not textbook trivia)? Investigated-but-filtered-out material is simply not written
-   anywhere — there is no "low confidence" tier to dump it in. This is the same discipline
-   `03_refinement_loop.md` applies to `user_model`: overreach on thin justification is a bug, not a
-   shortcut.
-3. **Persist** — every finding that survives the filter gets written twice, to two different tables with
-   two different lifetimes:
-   - `mind_insights` (`kind='recommendation'`) — this cycle's Field Investigation Report, superseded
-     wholesale each cycle like every other kind (existing behavior, unchanged).
-   - `mind_knowledge_library` — the durable, cumulative record, upserted by `(user_id, domain, title)`.
-     If the row already exists, update `summary`/`metadata` only if this cycle's version is a genuine
-     improvement, bump `cycle_count` by 1, and set `last_reinforced_at = now()`; leave `first_learned_at`
-     untouched. Never delete or truncate this table — it is meant to only grow. This is what powers the
-     "Knowledge Library" dashboard section: the accumulated map of everything the brain has learned across
-     every cycle, not just the current one.
+2. **Filter — for the report, not for the library.** Only genuinely new, worth-knowing findings (not
+   textbook trivia, not something already covered by an existing note) go into this cycle's Field
+   Investigation Report. But the filter no longer decides what gets remembered at all — see Persist below.
+   This is the same discipline `03_refinement_loop.md` applies to `user_model`: overreach on thin
+   justification is a bug, not a shortcut, but a filtered-out lead is still real research and still gets
+   kept, just not surfaced.
+3. **Persist — everything investigated, not just what's shown.** `mind_knowledge_library` is the durable
+   record of everything the brain's field investigation has learned, including the material that didn't
+   clear the report's bar — not only the polished subset the user sees. Every finding this cycle
+   investigated, filtered or not, gets upserted into `mind_knowledge_library` by `(user_id, domain,
+   title)`: if the row already exists, update `summary`/`metadata` only if this cycle's version is a
+   genuine improvement, bump `cycle_count` by 1, and set `last_reinforced_at = now()`; leave
+   `first_learned_at` untouched. Never delete or truncate this table — it is meant to only grow. Set its
+   `surfaced` column to `true` only for findings that also get written to `mind_insights`
+   (`kind='recommendation'`, this cycle's report, superseded wholesale each cycle like every other kind —
+   existing behavior, unchanged); set `surfaced = false` for filtered-out background research that the
+   library alone remembers. `mind_knowledge_library` is what powers the "Knowledge Library" dashboard
+   section: the accumulated map of everything the brain has learned across every cycle — reported and
+   unreported alike — not just the current cycle's report.
 
 ## Picking the domain for a library entry
 
@@ -86,7 +88,35 @@ If a finding is genuinely plain-text-only (no shape fits — `02_resource_resear
 "no consensus winner" case, or a one-off fact with no structure), the summary line *is* the content and
 should stay concise, not padded to look substantial.
 
+## Documenting what was actually read — `metadata.detail`
+
+"Visual-first" above governs the `summary` line and the compact card/diagram — what's glanceable on the
+report and on a library shelf tile. It does not mean the *library* entry should stop at that same
+one-liner. Investigating a concept or field means actually reading through real sources — a Wikipedia
+article, a paper, a history-of-the-idea writeup — and that reading turns up substance a 1-2 sentence
+`definition` can't hold: the history of how the idea was discovered or contested, its real limitations,
+how later work extended or reinterpreted it, a genuinely surprising or non-obvious result. That substance
+belongs in the library, not just in your own working memory for one cycle — the whole point of
+`mind_knowledge_library` is to be the durable record of everything learned, not a teaser for it.
+
+Write it to `metadata.detail`: a plain string, paragraphs separated by a blank line (`\n\n`), a few
+paragraphs where the reading actually supports it (empty/omitted when there genuinely isn't more than the
+one-liner — don't pad). This is separate from `summary` and from the structured card fields, and it does
+NOT render inline on the compact report or the library shelf tile — it only appears in the library entry's
+own detail window, which exists precisely because this content can run long. Concretely for a concept
+entry: `definition`/`branch`/`philosophers` stay terse and card-shaped as already specified; `metadata.detail`
+is where the Nash-equilibrium-style substance goes — e.g. the proof method behind an existence result, a
+known limitation or open problem, how the idea was later reinterpreted in an adjacent field, a hard
+computational or empirical result tied to it. Ground every claim in `detail` the same way
+`02_resource_research_method.md` already requires for anything beyond common-knowledge definitions — it
+should trace to a real source in `source_refs`, not be invented to look substantial.
+
 ## Changelog
 
 - 2026-07-17: initial version — Field Investigation Report reframe, concept/definition shape with
   philosophy-branch and philosopher lineage, durable `mind_knowledge_library` persistence step.
+- 2026-07-18: `mind_knowledge_library` now gets every investigated finding, not only report-worthy ones —
+  added the `surfaced` column (true = also in this cycle's report, false = filtered-out background
+  research the library alone remembers) so the library reflects everything learned, not just what's shown.
+- 2026-07-18: added `metadata.detail` — the library entry's own detail window (not the compact card/report)
+  now carries the substantive notes from actually reading sources, not just the short definition/card.

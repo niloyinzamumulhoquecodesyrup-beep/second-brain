@@ -112,7 +112,7 @@ First, check for unprocessed onboarding imports (mind_knowledge topic "onboardin
 
 Refresh my Mind Model following the refinement loop (mind_knowledge topic "refinement_loop"): read all mind_knowledge rows first — including "adhd_support_map", "topic_map_method", and "field_investigation_method" — then my notes, tasks, packets, activity_log, and current mind_insights via the Supabase MCP. Re-run POST /api/mind/synthesize to refresh the four templated kinds (interest_cluster, open_loop, attention_pattern, dormant_revival). Then write a fresh "overview" in your own words (mirror, not oracle — describe, don't direct), and update "user_model"/"recommendation" per the meta_map/learning_path_method/resource_research_method/adhd_support_map docs at whatever tier the data supports. Ground "patterns"/"cycles" evidence in real nearest-neighbor queries against notes.embedding (ORDER BY embedding <=> embedding LIMIT N, cosine distance — §4h) instead of eyeballing keyword overlap wherever notes have an embedding; notes still missing one (client-side step hasn't run for them yet) just don't participate — don't treat that as a gap to fill manually. Every user_model row must set section to exactly one of patterns | triggers | progress | cycles (per adhd_support_map — never diagnosis, defense mechanisms, transference, or risk/self-harm scoring). "inferred_goal" is one row PER distinct goal, never a single paragraph bundling several goals together — if the notes point at multiple separate things the user seems to be working toward, write one row for each. Every inferred_goal row's metadata must include a short name (e.g. metadata: {"name": "Neurobiology"}) — the dashboard renders it as a labeled banner, not a wall of prose, so a real short name beats a truncated first sentence every time. This name is also the live join onto the knowledge-galaxy map: read mind_knowledge topic "topic_map_method" and the current mind_topics rows for this account, and use goal_name (set on the one leaf node that matches this exact name) so the interest lights up in the right place. Before writing a new inferred_goal, check whether its topic already has a home in mind_topics — if not, grow the tree per that doc's rules (upsert by (user_id, slug), never touch the root row, never rename a slug, cap new nodes at 5 per cycle, only add a node for a topic with real recurring evidence, one leaf if it fits an existing hub, a short hub+leaf chain only if the field genuinely has that structure) rather than leaving every non-fitting interest stuck in Science/Tech/Business/Humanities by default. A goal that's gone quiet still counts as a goal and gets its own inferred_goal row even if a dormant_revival row already exists for the same notes — the two kinds answer different questions ("what are you working toward" vs. "what went quiet") and both can be true for the same thing at once. Write scope='user' calibration rows back to mind_knowledge. Insert everything via the Supabase MCP, superseding prior rows of each kind.
 
-Then run the field investigation (mind_knowledge topic "field_investigation_method") behind the "recommendation" kind, now labeled "Field Investigation Report" on the dashboard — this is the brain's own investigation, not a summary of what I captured. For every real lead this cycle surfaced (a stated interest, a recurring theme, an inferred_goal, a term implied but never defined in my own notes), investigate it the way a well-informed person would: learn what my notes don't already say — definitions, the field/branch something belongs to, the people who originated or shaped it. Filter before writing: skip anything already sitting in mind_knowledge_library for me, and skip textbook trivia that doesn't clear a real "worth knowing" bar — investigated-but-filtered material is simply not written anywhere, there is no low-confidence tier. Pick the shape per resource_research_method/field_investigation_method: a roadmap (metadata.path) for a bare stated interest in a whole field, a cited chart (metadata.chart) only when the numbers have a real source, terms with one-liners for a review/consolidation ask, or — new — metadata.concept = { term, definition, branch, philosophers: [{name, era, contribution}] (cap 2-4), related_concepts? } for a conceptual/theoretical term (ontology, epistemology, and similarly foundational terms in any field), naming which branch of the field it belongs to and who's responsible for it. Whichever shape you pick, the row's summary is a short title-level line, never a paragraph restating what the diagram/card already shows — see field_investigation_method's worked example before writing it. Persist every finding that survives the filter to BOTH mind_insights (kind='recommendation', this cycle's report, superseded like every other kind) AND mind_knowledge_library (upsert by (user_id, domain, title): update summary/metadata only if this cycle's version is a real improvement, else just bump cycle_count and last_reinforced_at, never delete) — domain should match the finding's hub name in mind_topics where one exists. mind_knowledge_library is the durable Knowledge Library the dashboard shows separately from this cycle's report; it must never be superseded or cleared, only added to.
+Then run the field investigation (mind_knowledge topic "field_investigation_method") behind the "recommendation" kind, now labeled "Field Investigation Report" on the dashboard — this is the brain's own investigation, not a summary of what I captured. For every real lead this cycle surfaced (a stated interest, a recurring theme, an inferred_goal, a term implied but never defined in my own notes), investigate it the way a well-informed person would: learn what my notes don't already say — definitions, the field/branch something belongs to, the people who originated or shaped it. The "worth knowing" bar (genuinely new — not already sitting in mind_knowledge_library for me — and not textbook trivia) decides what makes this cycle's report, not what gets remembered: every finding you actually investigate, filtered out of the report or not, still gets persisted to mind_knowledge_library, since the library's job is to hold everything the investigation has learned, not just the polished subset shown to me. Pick the shape per resource_research_method/field_investigation_method for whatever clears the report bar: a roadmap (metadata.path) for a bare stated interest in a whole field, a cited chart (metadata.chart) only when the numbers have a real source, terms with one-liners for a review/consolidation ask, or metadata.concept = { term, definition, branch, philosophers: [{name, era, contribution}] (cap 2-4), related_concepts? } for a conceptual/theoretical term (ontology, epistemology, and similarly foundational terms in any field), naming which branch of the field it belongs to and who's responsible for it. Whichever shape you pick, the row's summary is a short title-level line, never a paragraph restating what the diagram/card already shows — see field_investigation_method's worked example before writing it. That "visual-first, no restating prose" rule covers the summary and the compact card only — actually reading through real sources on a concept or field turns up more than a one-line definition (history of the idea, its real limitations, how later work reinterpreted it, a genuinely surprising result), and that substance belongs in the library entry's own metadata.detail (a plain string, paragraphs separated by \n\n, grounded in source_refs, empty when there truly isn't more than the one-liner) — it renders in the library entry's own detail window, not on the compact report or shelf tile, which is exactly why that window exists. Persist every investigated finding — report-worthy or filtered-out — to mind_knowledge_library (upsert by (user_id, domain, title): update summary/metadata only if this cycle's version is a real improvement, else just bump cycle_count and last_reinforced_at, never delete), setting surfaced = true for the subset also written to mind_insights (kind='recommendation', this cycle's report, superseded like every other kind) and surfaced = false for filtered-out background research the library alone remembers — domain should match the finding's hub name in mind_topics where one exists. mind_knowledge_library is the durable Knowledge Library the dashboard shows separately from this cycle's report; it must never be superseded or cleared, only added to.
 
 Then process the PARA-fun queue (para_fun_queue): first read all existing rows for this account. Leave still-valid pending rows untouched — do not duplicate or re-ask a question that's already waiting for an answer. Mark a row superseded if the note/data it was about has changed enough to invalidate it. Only after that, add new questions — including proposing a new capture if your processing surfaced something genuinely worth capturing. Build questions from the current open_loop/dormant_revival insights plus Inbox age, not new logic.
 
@@ -1133,48 +1133,122 @@ function NewsStrip({ items }) {
 }
 
 // Knowledge Library (mind_knowledge topic "field_investigation_method"): the durable,
-// cumulative archive of everything the field investigation has learned across every
-// cycle — distinct from the current cycle's Field Investigation Report, which is
-// superseded each run. Grouped by domain, one accent per domain, visual-first per entry
-// type — the same rendered shapes as the report (roadmap/concept/chart), just read from
-// mind_knowledge_library instead of this cycle's mind_insights rows.
+// cumulative archive of EVERYTHING the field investigation has learned across every
+// cycle — not only the polished subset shown to the user in a given cycle's Field
+// Investigation Report. An entry's `surfaced` flag marks whether it ever made that
+// report; entries that didn't (filtered-out background research — definitions, sources,
+// context read along the way) still live here. Browsed like a library: a shelf of
+// recently-reinforced covers up top, a searchable/filterable grid below, domains as a
+// sidebar — one accent color per domain, cycle_count doubling as a star rating (more
+// reinforcement = better known). Visual-first per entry type once opened — the same
+// rendered shapes as the report (roadmap/concept/chart).
 const LIBRARY_ACCENTS = ['#f0d9a3', '#5eead4', '#b7a6f7', '#f0a3c4', '#96befa', '#a3e0a0']
 const ENTRY_TYPE_LABEL = { concept: 'Concept', roadmap: 'Roadmap', fact: 'Fact', method: 'Method' }
 
-function LibraryEntryCard({ entry, accent }) {
+function StarRating({ count }) {
+  const stars = Math.min(5, Math.max(1, count || 1))
+  return (
+    <span className="text-[11px] tracking-tight text-gold-400" title={`reinforced ${count}×`}>
+      {'★'.repeat(stars)}
+      <span className="text-ink-500">{'★'.repeat(5 - stars)}</span>
+    </span>
+  )
+}
+
+function LibraryBookTile({ entry, accent, onOpen }) {
+  return (
+    <button
+      onClick={onOpen}
+      className="w-full rounded-lg p-4 text-left transition hover:brightness-110"
+      style={{ background: `linear-gradient(160deg, ${accent}2e, ${accent}0d)`, borderTop: `3px solid ${accent}` }}
+    >
+      <div className="flex items-center justify-between gap-2">
+        <span className="text-[11px] font-medium uppercase tracking-wide" style={{ color: accent }}>
+          {ENTRY_TYPE_LABEL[entry.entry_type] || entry.entry_type}
+        </span>
+        {!entry.surfaced && (
+          <span className="rounded-full border border-ink-500 px-1.5 py-0.5 text-[10px] text-mist-500">background research</span>
+        )}
+      </div>
+      <h3 className="mt-2 line-clamp-2 font-serif text-lg font-light text-mist-100">{entry.title}</h3>
+      <p className="mt-1 line-clamp-2 text-xs leading-relaxed text-mist-400">{entry.summary}</p>
+      <div className="mt-3 flex items-center justify-between">
+        <StarRating count={entry.cycle_count} />
+        <span className="text-[11px] text-mist-500">{entry.domain}</span>
+      </div>
+    </button>
+  )
+}
+
+// Documents backing a library entry (source material, full diagrams/concept writeups) can run
+// long, so the tile itself only ever shows a cover — the full content opens in its own window
+// rather than pushing the grid around.
+function LibraryEntryModal({ entry, accent, onClose }) {
   const [showSources, setShowSources] = useState(false)
+
+  useEffect(() => {
+    function onKey(e) { if (e.key === 'Escape') onClose() }
+    window.addEventListener('keydown', onKey)
+    return () => window.removeEventListener('keydown', onKey)
+  }, [onClose])
+
+  if (!entry) return null
   const md = entry.metadata || {}
   const hasPath = Array.isArray(md.path?.nodes) && md.path.nodes.length > 0
   const hasConcept = !!md.concept?.term
   const hasVisual = hasPath || hasConcept
 
   return (
-    <div className="card p-5" style={{ borderTop: `2px solid ${accent}66` }}>
-      <div className="flex items-center justify-between gap-2">
-        <span className="text-[11px] font-medium uppercase tracking-wide" style={{ color: accent }}>
-          {ENTRY_TYPE_LABEL[entry.entry_type] || entry.entry_type}
-        </span>
-        {entry.cycle_count > 1 && (
-          <span className="text-[11px] text-mist-500">reinforced {entry.cycle_count}×</span>
-        )}
-      </div>
+    <div className="fixed inset-0 z-50 flex items-start justify-center overflow-y-auto bg-ink-950/80 p-6 backdrop-blur-sm" onClick={onClose}>
+      <div
+        className="card my-8 w-full max-w-2xl p-6"
+        style={{ borderTop: `2px solid ${accent}` }}
+        onClick={e => e.stopPropagation()}
+      >
+        <div className="flex items-start justify-between gap-4">
+          <div>
+            <div className="flex items-center gap-2">
+              <span className="text-[11px] font-medium uppercase tracking-wide" style={{ color: accent }}>
+                {ENTRY_TYPE_LABEL[entry.entry_type] || entry.entry_type}
+              </span>
+              {!entry.surfaced && (
+                <span className="rounded-full border border-ink-500 px-1.5 py-0.5 text-[10px] text-mist-500">background research</span>
+              )}
+            </div>
+            <h2 className="mt-2 font-serif text-2xl font-light text-mist-100">{entry.title}</h2>
+            <p className="mt-1 text-[11px] text-mist-500">{entry.domain}</p>
+          </div>
+          <button onClick={onClose} className="shrink-0 text-mist-400 hover:text-mist-100" aria-label="Close">✕</button>
+        </div>
 
-      {!hasVisual && <p className="mt-2 text-sm leading-relaxed text-mist-100">{entry.summary}</p>}
-      {hasPath && <PathDiagram path={md.path} />}
-      {hasConcept && <ConceptCard concept={md.concept} />}
-      {md.chart && <MiniBarChart chart={md.chart} />}
+        <div className="mt-5">
+          {!hasVisual && <p className="text-sm leading-relaxed text-mist-100">{entry.summary}</p>}
+          {hasPath && <PathDiagram path={md.path} />}
+          {hasConcept && <ConceptCard concept={md.concept} />}
+          {md.chart && <MiniBarChart chart={md.chart} />}
+        </div>
 
-      <div className="mt-3 flex items-center justify-between">
-        <p className="text-[11px] text-mist-500">
-          known since {new Date(entry.first_learned_at).toLocaleDateString()}
-        </p>
-        {entry.source_refs?.length > 0 && (
-          <button onClick={() => setShowSources(s => !s)} className="text-[11px] text-mist-500 hover:text-mist-300">
-            {showSources ? 'Hide sources' : `Sources (${entry.source_refs.length})`}
-          </button>
+        {md.detail && (
+          <div className="mt-5 border-t border-ink-700 pt-4">
+            <p className="label mb-2 !text-mist-300">Notes</p>
+            <div className="space-y-3 text-sm leading-relaxed text-mist-300">
+              {md.detail.split('\n\n').map((para, i) => <p key={i}>{para}</p>)}
+            </div>
+          </div>
         )}
+
+        <div className="mt-5 flex items-center justify-between border-t border-ink-700 pt-3">
+          <p className="text-[11px] text-mist-500">
+            known since {new Date(entry.first_learned_at).toLocaleDateString()} · reinforced {entry.cycle_count}×
+          </p>
+          {entry.source_refs?.length > 0 && (
+            <button onClick={() => setShowSources(s => !s)} className="text-[11px] text-mist-500 hover:text-mist-300">
+              {showSources ? 'Hide sources' : `Sources (${entry.source_refs.length})`}
+            </button>
+          )}
+        </div>
+        {showSources && <SourceRefs refs={entry.source_refs} />}
       </div>
-      {showSources && <SourceRefs refs={entry.source_refs} />}
     </div>
   )
 }
@@ -1182,6 +1256,11 @@ function LibraryEntryCard({ entry, accent }) {
 function KnowledgeLibraryTab() {
   const [entries, setEntries] = useState(null)
   const [loading, setLoading] = useState(true)
+  const [search, setSearch] = useState('')
+  const [domainFilter, setDomainFilter] = useState(null)
+  const [typeFilter, setTypeFilter] = useState('all')
+  const [openEntry, setOpenEntry] = useState(null)
+  const shelfRef = useRef(null)
 
   useEffect(() => {
     fetch('/api/mind/library')
@@ -1190,6 +1269,32 @@ function KnowledgeLibraryTab() {
       .catch(() => setEntries([]))
       .finally(() => setLoading(false))
   }, [])
+
+  const accentByDomain = useMemo(() => {
+    const domains = [...new Set((entries || []).map(e => e.domain))]
+    return new Map(domains.map((d, i) => [d, LIBRARY_ACCENTS[i % LIBRARY_ACCENTS.length]]))
+  }, [entries])
+
+  const domainCounts = useMemo(() => {
+    const counts = new Map()
+    for (const e of entries || []) counts.set(e.domain, (counts.get(e.domain) || 0) + 1)
+    return [...counts.entries()].sort((a, b) => b[1] - a[1])
+  }, [entries])
+
+  const recentlyReinforced = useMemo(
+    () => [...(entries || [])].sort((a, b) => new Date(b.last_reinforced_at) - new Date(a.last_reinforced_at)).slice(0, 6),
+    [entries]
+  )
+
+  const filtered = useMemo(() => {
+    const q = search.trim().toLowerCase()
+    return (entries || []).filter(e => {
+      if (domainFilter && e.domain !== domainFilter) return false
+      if (typeFilter !== 'all' && e.entry_type !== typeFilter) return false
+      if (q && !`${e.title} ${e.summary} ${e.domain}`.toLowerCase().includes(q)) return false
+      return true
+    })
+  }, [entries, search, domainFilter, typeFilter])
 
   if (loading) {
     return (
@@ -1207,31 +1312,99 @@ function KnowledgeLibraryTab() {
     )
   }
 
-  const byDomain = new Map()
-  for (const e of entries) {
-    if (!byDomain.has(e.domain)) byDomain.set(e.domain, [])
-    byDomain.get(e.domain).push(e)
-  }
-
   return (
-    <div className="space-y-10">
-      {[...byDomain.entries()].map(([domain, items], i) => {
-        const accent = LIBRARY_ACCENTS[i % LIBRARY_ACCENTS.length]
-        return (
-          <div key={domain}>
-            <div className="mb-4 flex items-center gap-2">
-              <span className="h-2 w-2 rounded-full" style={{ backgroundColor: accent }} />
-              <p className="label !text-mist-300">{domain}</p>
-              <span className="text-[11px] text-mist-500">{items.length}</span>
-            </div>
-            <div className="grid gap-5 md:grid-cols-2">
-              {items.map(entry => (
-                <LibraryEntryCard key={entry.id} entry={entry} accent={accent} />
+    <div className="space-y-8">
+      <p className="text-sm text-mist-400">
+        Everything the brain has learned across every cycle — including background research that never made a Field Investigation Report, not just what's been shown to you.
+      </p>
+
+      {recentlyReinforced.length > 0 && (
+        <div>
+          <p className="label mb-3 !text-mist-300">Recently reinforced</p>
+          <div ref={shelfRef} className="flex gap-4 overflow-x-auto pb-2">
+            {recentlyReinforced.map(entry => (
+              <div key={entry.id} className="w-56 shrink-0">
+                <LibraryBookTile
+                  entry={entry}
+                  accent={accentByDomain.get(entry.domain)}
+                  onOpen={() => setOpenEntry(entry)}
+                />
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
+
+      <div className="flex flex-col gap-3 sm:flex-row sm:items-center">
+        <input
+          value={search}
+          onChange={e => setSearch(e.target.value)}
+          placeholder="Search the library…"
+          className="w-full rounded-md border border-ink-600 bg-ink-900 px-3 py-2 text-sm text-mist-100 placeholder:text-mist-500 focus:border-emerald-400/50 focus:outline-none sm:max-w-xs"
+        />
+        <select
+          value={typeFilter}
+          onChange={e => setTypeFilter(e.target.value)}
+          className="rounded-md border border-ink-600 bg-ink-900 px-3 py-2 text-sm text-mist-200 focus:border-emerald-400/50 focus:outline-none"
+        >
+          <option value="all">All types</option>
+          {Object.entries(ENTRY_TYPE_LABEL).map(([value, label]) => (
+            <option key={value} value={value}>{label}</option>
+          ))}
+        </select>
+        {domainFilter && (
+          <button onClick={() => setDomainFilter(null)} className="chip">
+            {domainFilter} ✕
+          </button>
+        )}
+      </div>
+
+      <div className="grid gap-8 lg:grid-cols-[1fr_200px]">
+        <div>
+          <p className="label mb-4 !text-mist-300">{domainFilter || 'Library'} <span className="text-[11px] text-mist-500">{filtered.length}</span></p>
+          {filtered.length === 0 ? (
+            <p className="text-sm text-mist-400">No entries match.</p>
+          ) : (
+            <div className="grid gap-5 sm:grid-cols-2 xl:grid-cols-3">
+              {filtered.map(entry => (
+                <LibraryBookTile
+                  key={entry.id}
+                  entry={entry}
+                  accent={accentByDomain.get(entry.domain)}
+                  onOpen={() => setOpenEntry(entry)}
+                />
               ))}
             </div>
-          </div>
-        )
-      })}
+          )}
+        </div>
+        <aside>
+          <p className="label mb-3 !text-mist-300">Domains</p>
+          <ul className="space-y-1">
+            {domainCounts.map(([domain, count]) => (
+              <li key={domain}>
+                <button
+                  onClick={() => setDomainFilter(d => (d === domain ? null : domain))}
+                  className={`flex w-full items-center gap-2 rounded px-2 py-1.5 text-sm transition ${
+                    domainFilter === domain ? 'bg-ink-800 text-mist-100' : 'text-mist-400 hover:text-mist-200'
+                  }`}
+                >
+                  <span className="h-2 w-2 shrink-0 rounded-full" style={{ backgroundColor: accentByDomain.get(domain) }} />
+                  <span className="truncate">{domain}</span>
+                  <span className="ml-auto text-[11px] text-mist-500">{count}</span>
+                </button>
+              </li>
+            ))}
+          </ul>
+        </aside>
+      </div>
+
+      {openEntry && (
+        <LibraryEntryModal
+          entry={openEntry}
+          accent={accentByDomain.get(openEntry.domain)}
+          onClose={() => setOpenEntry(null)}
+        />
+      )}
     </div>
   )
 }

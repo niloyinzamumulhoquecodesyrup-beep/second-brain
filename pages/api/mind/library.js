@@ -15,7 +15,7 @@ async function handler(req, res) {
 
   const { rows } = await pool.query(
     `SELECT id, domain, entry_type, title, summary, metadata, source_refs,
-            first_learned_at, last_reinforced_at, cycle_count
+            first_learned_at, last_reinforced_at, cycle_count, surfaced
      FROM mind_knowledge_library
      WHERE user_id = $1
      ORDER BY domain ASC, last_reinforced_at DESC`,
