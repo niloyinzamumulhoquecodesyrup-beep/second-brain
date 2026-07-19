@@ -60,6 +60,19 @@
     --orange-400: 251 146 60;
 
     --red-400: 248 113 113;
+
+    /* Dashboard stream chart (pages/index.js StreamChart) — a validated 8-hue
+       categorical set (CVD-checked via the dataviz skill's validate_palette.js,
+       both modes) distinct from the text/UI accents above, which weren't designed
+       to double as chart-fill colors. */
+    --stream-blue: 57 135 229;
+    --stream-green: 0 131 0;
+    --stream-magenta: 213 81 129;
+    --stream-yellow: 201 133 0;
+    --stream-aqua: 25 158 112;
+    --stream-orange: 217 89 38;
+    --stream-violet: 144 133 233;
+    --stream-red: 230 103 103;
   }
 
   /* Neutrals invert (ink-950 becomes the lightest surface, mist-100 becomes the
@@ -131,6 +144,15 @@
     --orange-400: 180 83 9;
 
     --red-400: 185 28 28;
+
+    --stream-blue: 42 120 214;
+    --stream-green: 0 131 0;
+    --stream-magenta: 232 123 164;
+    --stream-yellow: 237 161 0;
+    --stream-aqua: 27 175 122;
+    --stream-orange: 235 104 52;
+    --stream-violet: 74 58 167;
+    --stream-red: 227 73 72;
   }
 
   html {

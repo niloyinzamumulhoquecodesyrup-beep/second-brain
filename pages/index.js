@@ -2,16 +2,8 @@ import { useEffect, useState } from 'react'
 import Link from 'next/link'
 import Layout from '../components/Layout'
 import ParaBadge from '../components/ParaBadge'
+import MetricPeaksChart from '../components/MetricPeaksChart'
 import { requireSessionSSR } from '../lib/pageAuth'
-import { PARA_THEME } from '../lib/paraTheme'
-
-const PARA_LABELS = {
-  inbox: 'Inbox',
-  project: 'Projects',
-  area: 'Areas',
-  resource: 'Resources',
-  archive: 'Archives'
-}
 
 export default function Dashboard({ user }) {
   const [stats, setStats] = useState(null)
@@ -70,43 +62,7 @@ export default function Dashboard({ user }) {
             </Link>
           )}
 
-          <div className="mb-10 grid grid-cols-2 gap-4 md:grid-cols-5">
-            {['inbox', 'project', 'area', 'resource', 'archive'].map(key => {
-              const theme = PARA_THEME[key]
-              return (
-                <div key={key} className={`card border-t-2 p-5 ${theme.border}`}>
-                  <p className={`mb-2 flex items-center gap-2 text-[13px] uppercase tracking-[0.2em] font-medium ${theme.text}`}>
-                    <span className={`h-1.5 w-1.5 rounded-full ${theme.dot}`} />
-                    {PARA_LABELS[key]}
-                  </p>
-                  <p className="font-serif text-4xl font-light text-mist-100">{stats.para[key] ?? 0}</p>
-                </div>
-              )
-            })}
-          </div>
-
-          <div className="mb-10 grid gap-4 md:grid-cols-4">
-            <div className="card border-t-2 border-emerald-400/40 p-5">
-              <p className="label mb-2 !text-emerald-300">Knowledge assets</p>
-              <p className="font-serif text-3xl font-light text-mist-100">{stats.totalNotes}</p>
-              <p className="mt-1 text-xs text-mist-400">total captures</p>
-            </div>
-            <div className="card border-t-2 border-gold-400/40 p-5">
-              <p className="label mb-2 !text-gold-400">Distilled</p>
-              <p className="font-serif text-3xl font-light text-mist-100">{stats.distilled}</p>
-              <p className="mt-1 text-xs text-mist-400">refined to their essence</p>
-            </div>
-            <div className="card border-t-2 border-sky-400/40 p-5">
-              <p className="label mb-2 !text-sky-400">Connections</p>
-              <p className="font-serif text-3xl font-light text-mist-100">{stats.links}</p>
-              <p className="mt-1 text-xs text-mist-400">note-to-note links · {stats.packets} packets saved</p>
-            </div>
-            <div className="card border-t-2 border-violet-400/40 p-5">
-              <p className="label mb-2 !text-violet-300">Open tasks</p>
-              <p className="font-serif text-3xl font-light text-mist-100">{stats.tasksOpen}</p>
-              <p className="mt-1 text-xs text-mist-400">{stats.tasksDone} completed</p>
-            </div>
-          </div>
+          <MetricPeaksChart stats={stats} />
 
           <div className="card mb-10 p-6">
             <div className="mb-5 flex items-center justify-between">
