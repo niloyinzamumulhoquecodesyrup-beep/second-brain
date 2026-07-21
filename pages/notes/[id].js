@@ -58,7 +58,7 @@ export default function NoteDetail({ user }) {
   async function remove() {
     if (!confirm('Delete this note permanently?')) return
     await fetch(`/api/notes/${id}`, { method: 'DELETE' })
-    router.push('/organize')
+    router.push('/')
   }
 
   async function togglePin() {
@@ -80,7 +80,7 @@ export default function NoteDetail({ user }) {
 
   return (
     <Layout user={user}>
-      <Link href="/organize" className="btn-ghost mb-6 inline-block">← Back to Organize</Link>
+      <Link href="/" className="btn-ghost mb-6 inline-block">← Back to Organize</Link>
 
       {!editing ? (
         <div>
@@ -108,7 +108,7 @@ export default function NoteDetail({ user }) {
           {note.tags?.length > 0 && (
             <div className="mb-6 flex flex-wrap gap-2">
               {note.tags.map(t => (
-                <Link key={t} href={`/organize?tag=${encodeURIComponent(t)}`} className="chip hover:border-emerald-400/50 hover:text-emerald-300">{t}</Link>
+                <Link key={t} href={`/?tag=${encodeURIComponent(t)}`} className="chip hover:border-emerald-400/50 hover:text-emerald-300">{t}</Link>
               ))}
             </div>
           )}

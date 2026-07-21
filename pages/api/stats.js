@@ -11,7 +11,7 @@ async function handler(req, res) {
   const userId = req.user.id
 
   try {
-    const [paraCounts, distilledCount, packetCount, taskCounts, openTasks, linkCount, recent, tagRows, capturesByDay] = await Promise.all([
+    const [paraCounts, distilledCount, packetCount, taskCounts, openTasks, linkCount, recent, tagRows, capturesByDay, focusSessionsByDay, focusSessionsTotal, tasksDoneByDay] = await Promise.all([
       pool.query('SELECT para, count(*)::int AS count FROM notes WHERE user_id=$1 GROUP BY para', [userId]),
       pool.query('SELECT count(*)::int AS count FROM notes WHERE user_id=$1 AND distilled=true', [userId]),
       pool.query('SELECT count(*)::int AS count FROM packets WHERE user_id=$1', [userId]),
@@ -33,6 +33,25 @@ async function handler(req, res) {
       pool.query(
         `SELECT to_char(date_trunc('day', created_at), 'YYYY-MM-DD') AS day, count(*)::int AS count
          FROM notes WHERE user_id=$1 AND created_at > now() - interval '21 days'
+         GROUP BY 1 ORDER BY 1`,
+        [userId]
+      ),
+      // Reward panel: a completed focus session per day, same 21-day window as capturesByDay.
+      pool.query(
+        `SELECT to_char(date_trunc('day', created_at), 'YYYY-MM-DD') AS day, count(*)::int AS count
+         FROM activity_log
+         WHERE user_id=$1 AND event_type='focus_session' AND metadata->>'mode'='focus' AND created_at > now() - interval '21 days'
+         GROUP BY 1 ORDER BY 1`,
+        [userId]
+      ),
+      pool.query(
+        `SELECT count(*)::int AS count FROM activity_log WHERE user_id=$1 AND event_type='focus_session' AND metadata->>'mode'='focus'`,
+        [userId]
+      ),
+      pool.query(
+        `SELECT to_char(date_trunc('day', created_at), 'YYYY-MM-DD') AS day, count(*)::int AS count
+         FROM activity_log
+         WHERE user_id=$1 AND event_type='task_completed' AND created_at > now() - interval '21 days'
          GROUP BY 1 ORDER BY 1`,
         [userId]
       )
@@ -63,7 +82,10 @@ async function handler(req, res) {
       links: linkCount.rows[0].count,
       recent: recent.rows,
       topTags,
-      capturesByDay: capturesByDay.rows
+      capturesByDay: capturesByDay.rows,
+      focusSessionsByDay: focusSessionsByDay.rows,
+      focusSessionsTotal: focusSessionsTotal.rows[0].count,
+      tasksDoneByDay: tasksDoneByDay.rows
     })
   } catch (err) {
     console.error(err)

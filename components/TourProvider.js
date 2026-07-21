@@ -16,10 +16,10 @@ const STEP_KEY = 'sb_tour_step'
 export const TOUR_STEPS = ['welcome', 'capture', 'organize', 'distill', 'express', 'summary']
 export const TOUR_PATH = {
   welcome: '/mind',
-  capture: '/capture',
-  organize: '/organize',
-  distill: '/distill',
-  express: '/express',
+  capture: '/',
+  organize: '/',
+  distill: '/',
+  express: '/',
   summary: '/mind'
 }
 // Paths the lock never redirects away from, even mid-tour (auth pages, and the tour's

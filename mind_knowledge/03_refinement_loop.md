@@ -47,6 +47,13 @@ Supersede the prior `feed` row rather than editing in place; skip it entirely wh
 behind it — an empty ticker is worse than its absence. Do not write the other renderer types — they would
 just be dead writes with no display surface.
 
+## Style — applies to every kind, no exceptions
+
+- No em dashes (—) anywhere in generated text: not in `overview`, `user_model`, `recommendation`
+  summaries/`metadata.detail`, `feed` items, `para_fun_queue` question_text/options,
+  `planner_prompts`, `mind_knowledge` calibration rows, or `mind_cycle_runs` notes. Use a period,
+  comma, colon, or "and" instead.
+
 ## Rules
 
 - The "figure out what to figure out" step is already figured out — it's 00_meta_map. Don't ask the
@@ -67,3 +74,5 @@ just be dead writes with no display surface.
 - 2026-07-17: "Visit Your Brain" removed completely (user request); rewrote "Brain sections" to
   "mind_sections — feed only now" since insight_list/queue/question/activity_digest/reminder lost their
   only UI consumer. Only write `feed`-renderer sections going forward.
+- 2026-07-21: added the em-dash style rule (user request) — no "—" in any generated text, across every
+  kind, going forward.

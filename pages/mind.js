@@ -3,11 +3,11 @@ import Link from 'next/link'
 import Layout from '../components/Layout'
 import KnowledgeGalaxy from '../components/KnowledgeGalaxy'
 import Onboarding from '../components/Onboarding'
-import ProductivityTab from '../components/ProductivityTab'
 import TourOverlay from '../components/TourOverlay'
 import { useTheme } from '../components/ThemeProvider'
 import { requireSessionSSR } from '../lib/pageAuth'
 import { embedPendingNotes } from '../lib/clientEmbeddings'
+import { KIND_LABELS, SourceRefs, PathDiagram, MiniBarChart, ConceptCard } from '../components/InsightCards'
 
 // §4e/§4f: same rose/emerald/violet/gold/mist accent family as lib/paraTheme.js
 // (Tailwind class names there, hex here since the visualizer paints on canvas) —
@@ -19,16 +19,6 @@ const PARA_COLORS = {
   area: '#b7a6f7',
   resource: '#f0d9a3',
   archive: '#8a929b'
-}
-
-// §4f: accent palette shared with lib/paraTheme.js, keyed by the `accent` column a
-// cycle writes onto each mind_sections row.
-const ACCENT_HEX = {
-  emerald: '#5eead4',
-  violet: '#b7a6f7',
-  gold: '#f0d9a3',
-  rose: '#fb7185',
-  mist: '#9aa4ae'
 }
 
 // mind_sections' only live UI consumer now is the "feed" renderer, which powers the
@@ -94,16 +84,6 @@ function relativeTimeLabel(date) {
   return `${days} days ago`
 }
 
-const KIND_LABELS = {
-  interest_cluster: 'Interest clusters',
-  open_loop: 'Open loops',
-  attention_pattern: 'Attention patterns',
-  dormant_revival: 'Dormant revival',
-  inferred_goal: 'Inferred goals',
-  user_model: 'How you seem to work',
-  recommendation: 'Researched resources'
-}
-
 const KIND_ORDER = ['interest_cluster', 'open_loop', 'attention_pattern', 'dormant_revival', 'inferred_goal']
 
 const STALE_DAYS = 2
@@ -135,39 +115,13 @@ Then re-emit the "feed" mind_sections row that powers the Overview page's "Lates
 
 Then tend the productivity planner (mind_knowledge topic "productivity_planner_method"; tables planner_routines / planner_blocks / planner_prompts). Read all three for this account first, including answered planner_prompts rows — a free-text answer to "What do you do on a regular basis?" or a picked option on one of your earlier questions is user-provided ground truth waiting to be turned into structure. From those answers plus the user_model, tasks with due dates, open loops, and recurring themes in the notes, write: (a) at most 2-3 new planner_blocks rows with status='suggested' and source='cycle', each pinned to a real upcoming plan_date with a sensible start_min/duration_min (minutes from midnight) and category (sleep|work|study|exercise|meals|leisure|other), and non-empty source_refs naming the evidence — a suggestion with no traceable source is a bug; (b) at most 1-2 new planner_prompts rows — prompt_type='question' (with options) only when a real evidence gap blocks a better suggestion (e.g. the notes hint at swimming but never say which days), or prompt_type='routine_suggestion' with a complete suggestion payload {"title", "category", "days" (0=Mon..6=Sun), "start_min", "duration_min"}. Planner hard rules, same posture as the PARA queue: never INSERT or UPDATE planner_routines directly and never create or edit planner_blocks rows whose status is active/done/skipped — acceptance happens only through the user's tap in the app; don't re-suggest anything already pending or dismissed within the last two weeks; mark your own stale still-'suggested' blocks whose plan_date has passed as dismissed; if the user has no routines and no answered prompts yet, skip suggestions entirely and leave at most the single standing question.
 
-Finally, record the cycle: write one mind_cycle_runs row (started_at, completed_at, tokens_used = your own honest estimate of tokens spent this cycle, sections_written, insights_written, status = ok | partial | error, notes = free text on anything that failed). Record partial and failed cycles honestly — the dashboard surfaces them so I can tell whether the refresh actually did what it claimed (§4k).`
+Style rule for every piece of text you write this cycle — overview, user_model, recommendation summaries and metadata.detail, feed items, para_fun_queue question_text/options, planner_prompts, mind_knowledge calibration rows, mind_cycle_runs notes, all of it: no em dashes (—). Use a period, comma, colon, or "and" instead. No exceptions, no kind is exempt.
+
+Finally, record the cycle: write one mind_cycle_runs row (started_at, completed_at, tokens_used = your own honest estimate of tokens spent this cycle, sections_written, insights_written, status = ok | partial | error, notes = free text on anything that failed). Record partial and failed cycles honestly, the dashboard surfaces them so I can tell whether the refresh actually did what it claimed (§4k).`
 }
 
 function daysAgo(dateStr) {
   return Math.floor((Date.now() - new Date(dateStr).getTime()) / (1000 * 60 * 60 * 24))
-}
-
-function SourceRefs({ refs }) {
-  if (!refs || refs.length === 0) return null
-  return (
-    <ul className="mt-2 space-y-1 border-t border-ink-700 pt-2">
-      {refs.map((ref, i) => (
-        <li key={i} className="text-xs text-mist-400">
-          {ref.type === 'note' ? (
-            <Link href={`/notes/${ref.id}`} className="hover:text-emerald-300">
-              ↳ {ref.title}
-            </Link>
-          ) : ref.type === 'mind_insight' ? (
-            <span>↳ {KIND_LABELS[ref.kind] || ref.kind} insight</span>
-          ) : ref.type === 'resource' ? (
-            <a href={ref.url} target="_blank" rel="noreferrer" className="hover:text-violet-300">
-              ↳ {ref.title}{ref.url ? ' ↗' : ''}
-            </a>
-          ) : (
-            <span>
-              ↳ {ref.name || ref.type}
-              {ref.total != null ? `: ${ref.followed_through}/${ref.total}` : ref.value != null ? `: ${ref.value}` : ''}
-            </span>
-          )}
-        </li>
-      ))}
-    </ul>
-  )
 }
 
 function InsightRow({ insight }) {
@@ -229,191 +183,6 @@ function ProcessingNotice() {
   )
 }
 
-// Short single-line banner title (no summary text shown until clicked) — first
-// sentence of the insight, cut at a word boundary if still too long for the ribbon.
-function shortGoalTitle(summary) {
-  if (!summary) return 'Inferred goal'
-  const firstSentence = (summary.split(/(?<=[.!?])\s/)[0] || summary).replace(/[.!?]+$/, '')
-  const MAX = 32
-  if (firstSentence.length <= MAX) return firstSentence
-  const cut = firstSentence.slice(0, MAX)
-  const lastSpace = cut.lastIndexOf(' ')
-  return (lastSpace > 16 ? cut.slice(0, lastSpace) : cut) + '…'
-}
-
-// Fixed coordinate space (scaled responsively via the SVG viewBox) for the goal
-// arrow/target diagram below — geometry lives here once so every shape agrees.
-const GOAL_VW = 1000
-const GOAL_ROW_H = 112
-const GOAL_BW = 320
-const GOAL_BH = 60
-const GOAL_TAB_W = 56
-const GOAL_GAP = 70
-const GOAL_TOP_PAD = 40
-const GOAL_HEAD_W = 34
-const GOAL_HEAD_H = 26
-const GOAL_SHAFT_W = 34
-const GOAL_NOTCH = 14
-const GOAL_TARGET_R = 48
-const GOAL_SPINE_X = GOAL_VW / 2
-// The spine/arrowhead/target shapes are always violet (see GOAL_PLATE_COLORS below) —
-// reads the CSS variable directly so it tracks the theme's already-contrast-corrected
-// violet-400 instead of a hex frozen at the dark-mode value.
-const GOAL_VIOLET = 'rgb(var(--violet-400))'
-
-// Each goal plate gets its own color (cycling through the app's existing accent family)
-// so distinct goals are visually distinct at a glance, not just by number/title text.
-// Violet is excluded here — the fixed spine/arrowhead/target shapes below are always
-// violet, so a plate in that same color would be indistinguishable from the structure.
-const GOAL_PLATE_COLORS = [ACCENT_HEX.gold, ACCENT_HEX.emerald, ACCENT_HEX.rose, ACCENT_HEX.mist, '#f0a3c4']
-function goalPlateColor(i) {
-  return GOAL_PLATE_COLORS[i % GOAL_PLATE_COLORS.length]
-}
-function hexToRgb(hex) {
-  const n = parseInt(hex.slice(1), 16)
-  return `${(n >> 16) & 255},${(n >> 8) & 255},${n & 255}`
-}
-
-// One ribbon-flag banner: a rectangle plus a triangular-notched number tab on its outer
-// edge (mirrored left/right) — the literal shape from the reference infographic, redrawn
-// in a per-goal accent color (goalPlateColor) rather than a single fixed violet. Title
-// only; no summary text renders here at all.
-function GoalRibbon({ goal, num, side, rowCenterY, active, onClick, color }) {
-  const rectY = rowCenterY - GOAL_BH / 2
-  const innerX = side === 'left' ? GOAL_SPINE_X - GOAL_GAP : GOAL_SPINE_X + GOAL_GAP
-  const rectX = side === 'left' ? innerX - GOAL_BW : innerX
-  const tabInnerX = side === 'left' ? rectX : rectX + GOAL_BW
-  const tabOuterX = side === 'left' ? rectX - GOAL_TAB_W : rectX + GOAL_BW + GOAL_TAB_W
-  const notchX = side === 'left' ? tabOuterX + 14 : tabOuterX - 14
-  const tabPoints = `${tabInnerX},${rectY} ${notchX},${rectY} ${tabOuterX},${rowCenterY} ${notchX},${rectY + GOAL_BH} ${tabInnerX},${rectY + GOAL_BH}`
-  const titleX = side === 'left' ? rectX + 16 : rectX + GOAL_BW - 16
-  const tabTextX = (tabInnerX + tabOuterX) / 2
-  // Prefer an explicit short name a cycle assigned (metadata.name, e.g. "Neurobiology")
-  // over an algorithmically-derived first sentence — a real name reads far better than
-  // a truncated "Based on your Project and Area notes..." fragment.
-  const title = goal.metadata?.name || shortGoalTitle(goal.summary)
-
-  const rgb = hexToRgb(color)
-  return (
-    <g onClick={onClick} className="cursor-pointer">
-      <rect
-        x={rectX} y={rectY} width={GOAL_BW} height={GOAL_BH} rx={10}
-        fill={active ? `rgba(${rgb},0.22)` : `rgba(${rgb},0.1)`}
-        stroke={color} strokeOpacity={active ? 0.9 : 0.4} strokeWidth={active ? 2 : 1.2}
-      />
-      <polygon points={tabPoints} fill={color} fillOpacity={active ? 0.95 : 0.7} />
-      <text x={tabTextX} y={rowCenterY} textAnchor="middle" dominantBaseline="central" fill="#0b0f14" style={{ fontSize: 20, fontWeight: 700 }}>
-        {num}
-      </text>
-      <text x={titleX} y={rowCenterY} textAnchor={side === 'left' ? 'start' : 'end'} dominantBaseline="central"
-        style={{ fontSize: 15, fontWeight: 500, fill: active ? 'rgb(var(--mist-100))' : 'rgb(var(--mist-300))' }}>
-        {title}
-      </text>
-    </g>
-  )
-}
-
-// Inferred goals as a numbered ribbon-and-target infographic — the literal structure
-// from the reference (flag-notched number tabs, a chevron arrow shaft, connector lines
-// into a target), redrawn in the app's violet accent instead of the reference's
-// cream/red. Goals split first-half-left / second-half-right (not zigzagged), matching
-// the reference's 01-03 left / 04-06 right grouping; 1 goal renders alone on the left
-// with the shaft/target still intact. Banners show only a short title; clicking one
-// opens a detail panel below the diagram with the full summary + the same SourceRefs
-// every other insight already uses — extra info only when asked for, never inline.
-function GoalArrowChart({ goals }) {
-  const [activeId, setActiveId] = useState(null)
-  if (!goals || goals.length === 0) {
-    return (
-      <div className="card p-6">
-        <p className="label mb-2 !text-violet-300">Inferred goals</p>
-        <p className="text-sm text-mist-400">No goals inferred yet.</p>
-      </div>
-    )
-  }
-  const half = Math.ceil(goals.length / 2)
-  const left = goals.slice(0, half)
-  const right = goals.slice(half)
-  const rows = left.length
-
-  const shaftBottomY = GOAL_TOP_PAD + GOAL_HEAD_H + rows * GOAL_ROW_H
-  const targetCenterY = shaftBottomY + 30 + GOAL_TARGET_R
-  const totalHeight = targetCenterY + GOAL_TARGET_R + 30
-
-  const activeGoal = goals.find(g => g.id === activeId) || null
-  const activeNum = activeGoal ? goals.indexOf(activeGoal) + 1 : null
-
-  function toggle(id) {
-    setActiveId(a => (a === id ? null : id))
-  }
-
-  return (
-    <div className="card p-6">
-      <p className="label mb-6 !text-violet-300">Inferred goals</p>
-      <svg viewBox={`0 0 ${GOAL_VW} ${totalHeight}`} className="w-full" style={{ maxHeight: 420 }}>
-        <polygon
-          points={`${GOAL_SPINE_X},${GOAL_TOP_PAD} ${GOAL_SPINE_X - GOAL_HEAD_W / 2},${GOAL_TOP_PAD + GOAL_HEAD_H} ${GOAL_SPINE_X + GOAL_HEAD_W / 2},${GOAL_TOP_PAD + GOAL_HEAD_H}`}
-          fill={GOAL_VIOLET} fillOpacity="0.85"
-        />
-        {Array.from({ length: rows }, (_, i) => {
-          const topY = GOAL_TOP_PAD + GOAL_HEAD_H + i * GOAL_ROW_H
-          const botY = topY + GOAL_ROW_H
-          const sx0 = GOAL_SPINE_X - GOAL_SHAFT_W / 2
-          const sx1 = GOAL_SPINE_X + GOAL_SHAFT_W / 2
-          return (
-            <path key={i}
-              d={`M ${sx0},${topY} L ${sx1},${topY} L ${sx1},${botY - GOAL_NOTCH} L ${GOAL_SPINE_X},${botY} L ${sx0},${botY - GOAL_NOTCH} Z`}
-              fill={GOAL_VIOLET} fillOpacity={i % 2 === 0 ? 0.55 : 0.4} stroke={GOAL_VIOLET} strokeOpacity="0.3"
-            />
-          )
-        })}
-        <line x1={GOAL_SPINE_X} y1={shaftBottomY} x2={GOAL_SPINE_X} y2={targetCenterY - GOAL_TARGET_R} stroke={GOAL_VIOLET} strokeOpacity="0.5" strokeWidth="3" />
-
-        <ellipse cx={GOAL_SPINE_X} cy={targetCenterY + 6} rx={GOAL_TARGET_R + 14} ry={(GOAL_TARGET_R + 14) * 0.32} fill={GOAL_VIOLET} fillOpacity="0.08" />
-        <circle cx={GOAL_SPINE_X} cy={targetCenterY} r={GOAL_TARGET_R} fill="none" stroke={GOAL_VIOLET} strokeOpacity="0.35" strokeWidth="6" />
-        <circle cx={GOAL_SPINE_X} cy={targetCenterY} r={GOAL_TARGET_R * 0.62} fill="none" stroke={GOAL_VIOLET} strokeOpacity="0.55" strokeWidth="6" />
-        <circle cx={GOAL_SPINE_X} cy={targetCenterY} r={GOAL_TARGET_R * 0.26} fill={GOAL_VIOLET} fillOpacity="0.85" />
-
-        {Array.from({ length: rows }, (_, i) => {
-          const rowCenterY = GOAL_TOP_PAD + GOAL_HEAD_H + i * GOAL_ROW_H + GOAL_ROW_H / 2
-          const lGoal = left[i]
-          const rGoal = right[i]
-          return (
-            <g key={i}>
-              {lGoal && (
-                <>
-                  <line x1={GOAL_SPINE_X - GOAL_GAP} y1={rowCenterY} x2={GOAL_SPINE_X - GOAL_SHAFT_W / 2} y2={rowCenterY} stroke={goalPlateColor(i)} strokeOpacity="0.4" strokeWidth="2" />
-                  <circle cx={GOAL_SPINE_X - GOAL_GAP} cy={rowCenterY} r="4" fill={goalPlateColor(i)} />
-                  <GoalRibbon goal={lGoal} num={String(i + 1).padStart(2, '0')} side="left" rowCenterY={rowCenterY}
-                    active={activeId === lGoal.id} onClick={() => toggle(lGoal.id)} color={goalPlateColor(i)} />
-                </>
-              )}
-              {rGoal && (
-                <>
-                  <line x1={GOAL_SPINE_X + GOAL_SHAFT_W / 2} y1={rowCenterY} x2={GOAL_SPINE_X + GOAL_GAP} y2={rowCenterY} stroke={goalPlateColor(half + i)} strokeOpacity="0.4" strokeWidth="2" />
-                  <circle cx={GOAL_SPINE_X + GOAL_GAP} cy={rowCenterY} r="4" fill={goalPlateColor(half + i)} />
-                  <GoalRibbon goal={rGoal} num={String(half + i + 1).padStart(2, '0')} side="right" rowCenterY={rowCenterY}
-                    active={activeId === rGoal.id} onClick={() => toggle(rGoal.id)} color={goalPlateColor(half + i)} />
-                </>
-              )}
-            </g>
-          )
-        })}
-      </svg>
-
-      {activeGoal && (
-        <div className="mt-4 rounded-xl border border-violet-400/30 bg-violet-500/5 p-4">
-          <p className="mb-2 text-xs font-semibold uppercase tracking-wide text-violet-300">
-            Goal {String(activeNum).padStart(2, '0')}{activeGoal.metadata?.name ? ` — ${activeGoal.metadata.name}` : ''}
-          </p>
-          <p className="text-sm leading-relaxed text-mist-100">{activeGoal.summary}</p>
-          <SourceRefs refs={activeGoal.source_refs} />
-        </div>
-      )}
-    </div>
-  )
-}
-
 // §4k: honest cycle-health readout — surfaces the last refresh's status, spend, and
 // counts, including partial/failed cycles (not just clean ones), so the user can tell
 // whether the last refresh actually did what it claimed. Reads mind_cycle_runs, which
@@ -457,276 +226,6 @@ function CycleHealthCard({ cycle }) {
             {showNotes ? 'Hide details' : 'Show details'}
           </button>
           {showNotes && <p className="mt-2 text-xs leading-relaxed text-mist-400">{cycle.notes}</p>}
-        </div>
-      )}
-    </div>
-  )
-}
-
-// §4i: a learning-path recommendation carries a machine-renderable graph in
-// metadata.path (mind_knowledge 01_learning_path_method.md's format: flat `nodes` with
-// `requires` dependency edges). Rendered as an actual node-and-arrow diagram — layered by
-// longest-path-from-root over `requires`, so prerequisite chains read top-to-bottom and
-// parallel nodes sit side by side. Tap a node for its resource/practice detail rather than
-// wrapping every label in explanatory prose, per §1's ADHD rule (surface the shape first,
-// detail on demand).
-const PATH_NODE_TYPE_FILL = {
-  concept: '#b7a6f7',
-  fact: '#5eead4',
-  procedure: '#f0d9a3'
-}
-const PATH_NODE_W = 168
-const PATH_NODE_H = 52
-const PATH_LEVEL_GAP = 72
-const PATH_NODE_GAP = 20
-const PATH_TOP_PAD = 20
-const PATH_MAX_PER_ROW = 4 // wrap same-level nodes (e.g. a flat set of terms) instead of one wide squeezed row
-
-function PathDiagram({ path }) {
-  const [activeId, setActiveId] = useState(null)
-  const nodes = Array.isArray(path?.nodes) ? path.nodes : []
-  if (nodes.length === 0) return null
-
-  const byId = {}
-  nodes.forEach(n => { byId[n.id] = n })
-
-  const level = {}
-  function levelOf(id, seen) {
-    if (level[id] != null) return level[id]
-    if (seen.has(id)) return 0 // guard against malformed cyclic `requires`
-    const reqs = (byId[id].requires || []).filter(r => byId[r])
-    if (reqs.length === 0) { level[id] = 0; return 0 }
-    const nextSeen = new Set(seen); nextSeen.add(id)
-    const l = 1 + Math.max(...reqs.map(r => levelOf(r, nextSeen)))
-    level[id] = l
-    return l
-  }
-  nodes.forEach(n => levelOf(n.id, new Set()))
-
-  const levelRows = {}
-  nodes.forEach(n => { (levelRows[level[n.id]] ||= []).push(n) })
-  const levelCount = Math.max(...Object.values(level)) + 1
-
-  // dependency levels become one or more visual rows, wrapped at PATH_MAX_PER_ROW
-  const visualRows = []
-  for (let l = 0; l < levelCount; l++) {
-    const row = levelRows[l] || []
-    for (let i = 0; i < row.length; i += PATH_MAX_PER_ROW) {
-      visualRows.push(row.slice(i, i + PATH_MAX_PER_ROW))
-    }
-  }
-  const rowCount = visualRows.length
-  const maxRowLen = Math.max(...visualRows.map(r => r.length))
-  const width = maxRowLen * PATH_NODE_W + (maxRowLen - 1) * PATH_NODE_GAP
-  const height = PATH_TOP_PAD * 2 + rowCount * PATH_NODE_H + (rowCount - 1) * PATH_LEVEL_GAP
-
-  const pos = {}
-  visualRows.forEach((row, ri) => {
-    const rowWidth = row.length * PATH_NODE_W + (row.length - 1) * PATH_NODE_GAP
-    const startX = (width - rowWidth) / 2
-    row.forEach((n, i) => {
-      pos[n.id] = { x: startX + i * (PATH_NODE_W + PATH_NODE_GAP), y: PATH_TOP_PAD + ri * (PATH_NODE_H + PATH_LEVEL_GAP) }
-    })
-  })
-
-  const edges = []
-  nodes.forEach(n => {
-    (n.requires || []).forEach(r => {
-      if (pos[r]) edges.push({ from: r, to: n.id })
-    })
-  })
-
-  const active = activeId ? byId[activeId] : null
-  const activeFill = active ? (PATH_NODE_TYPE_FILL[active.type] || '#9aa4ae') : null
-
-  return (
-    <div className="mt-3">
-      {path.topic && <p className="mb-2 text-xs font-medium uppercase tracking-wide text-gold-200/80">{path.topic}</p>}
-      <svg viewBox={`0 0 ${width} ${height}`} style={{ width: '100%', maxWidth: width, display: 'block', margin: '0 auto' }}>
-        <defs>
-          <marker id="path-arrow" viewBox="0 0 8 8" refX="7" refY="4" markerWidth="6" markerHeight="6" orient="auto-start-reverse">
-            <path d="M0,0 L8,4 L0,8 z" fill="rgb(var(--mist-400))" />
-          </marker>
-        </defs>
-        {edges.map((e, i) => {
-          const a = pos[e.from], b = pos[e.to]
-          const x1 = a.x + PATH_NODE_W / 2, y1 = a.y + PATH_NODE_H
-          const x2 = b.x + PATH_NODE_W / 2, y2 = b.y
-          const midY = (y1 + y2) / 2
-          return (
-            <path key={i} d={`M ${x1},${y1} C ${x1},${midY} ${x2},${midY} ${x2},${y2}`}
-              fill="none" stroke="rgb(var(--mist-400))" strokeOpacity="0.6" strokeWidth="1.5" markerEnd="url(#path-arrow)" />
-          )
-        })}
-        {nodes.map(n => {
-          const p = pos[n.id]
-          const fill = PATH_NODE_TYPE_FILL[n.type] || '#9aa4ae'
-          const isActive = activeId === n.id
-          return (
-            <g key={n.id} onClick={() => setActiveId(a => (a === n.id ? null : n.id))} style={{ cursor: 'pointer' }}>
-              <rect x={p.x} y={p.y} width={PATH_NODE_W} height={PATH_NODE_H} rx="10"
-                fill={fill} fillOpacity={isActive ? 0.28 : 0.12}
-                stroke={fill} strokeOpacity={isActive ? 0.9 : 0.5} strokeWidth={isActive ? 2 : 1.5} />
-              <foreignObject x={p.x + 8} y={p.y + 6} width={PATH_NODE_W - 16} height={PATH_NODE_H - 12}>
-                <div xmlns="http://www.w3.org/1999/xhtml" style={{ display: 'flex', height: '100%', alignItems: 'center', justifyContent: 'center', textAlign: 'center', fontSize: 12, lineHeight: 1.25, color: 'rgb(var(--mist-100))' }}>
-                  {n.label}
-                </div>
-              </foreignObject>
-            </g>
-          )
-        })}
-      </svg>
-
-      {active && (
-        <div className="mt-3 rounded-lg border border-ink-700 bg-ink-900/60 p-3">
-          <p className="mb-1 flex items-center gap-2 text-xs font-medium text-mist-200">
-            {active.type && (
-              <span className="rounded border px-1.5 py-0.5 text-[11px] uppercase tracking-wide" style={{ borderColor: activeFill, color: activeFill }}>
-                {active.type}
-              </span>
-            )}
-            {active.label}
-          </p>
-          {active.resource && (
-            <p className="text-xs text-mist-400">
-              {active.resource.url ? (
-                <a href={active.resource.url} target="_blank" rel="noreferrer" className="text-violet-300 hover:text-violet-200">
-                  {active.resource.title} ↗
-                </a>
-              ) : (
-                <span className="text-mist-200">{active.resource.title}</span>
-              )}
-              {active.resource.why_this_one ? <span className="text-mist-500"> — {active.resource.why_this_one}</span> : null}
-            </p>
-          )}
-          {active.practice && <p className="mt-1 text-xs text-emerald-200/80">✎ {active.practice}</p>}
-        </div>
-      )}
-
-      {(path.sequencing_mode || path.timeline) && (
-        <p className="mt-2 text-[13px] text-mist-500">
-          {path.sequencing_mode ? `${path.sequencing_mode} sequencing` : ''}{path.sequencing_mode && path.timeline ? ' · ' : ''}{path.timeline || ''}
-        </p>
-      )}
-    </div>
-  )
-}
-
-// §4i: a small bar chart for a recommendation — ONLY rendered when the numbers carry a
-// cited source (chart.source), same rule as recommendation itself. Never fabricated
-// numbers dressed up as a chart.
-function MiniBarChart({ chart }) {
-  const bars = Array.isArray(chart?.bars) ? chart.bars.filter(b => typeof b.value === 'number') : []
-  if (bars.length === 0 || !chart.source) return null
-  const max = Math.max(...bars.map(b => b.value)) || 1
-  return (
-    <div className="mt-3 rounded-lg border border-ink-700 bg-ink-900/60 p-3">
-      {chart.title && <p className="mb-2 text-xs font-medium text-mist-200">{chart.title}{chart.unit ? ` (${chart.unit})` : ''}</p>}
-      <div className="space-y-1.5">
-        {bars.map((b, i) => (
-          <div key={i} className="flex items-center gap-2 text-xs">
-            <span className="w-24 shrink-0 truncate text-mist-400">{b.label}</span>
-            <span className="h-2 rounded-full bg-gold-400/70" style={{ width: `${Math.max(4, (b.value / max) * 100)}%` }} />
-            <span className="text-mist-300">{b.value}</span>
-          </div>
-        ))}
-      </div>
-      <p className="mt-2 text-[13px] text-mist-500">
-        Source:{' '}
-        {chart.source.url ? (
-          <a href={chart.source.url} target="_blank" rel="noreferrer" className="hover:text-violet-300">{chart.source.title || chart.source.url} ↗</a>
-        ) : (chart.source.title || 'cited')}
-      </p>
-    </div>
-  )
-}
-
-// Field investigation method's "concept" shape (mind_knowledge topic
-// "field_investigation_method"): a conceptual/theoretical term — definition, the branch
-// of the field it belongs to, and a compact philosopher lineage. Visual-first per that
-// doc: term + branch chip + one-line definition, then philosophers as a small connected
-// timeline (name/era/one clause), not a paragraph of intellectual history.
-function ConceptCard({ concept }) {
-  if (!concept?.term) return null
-  const philosophers = Array.isArray(concept.philosophers) ? concept.philosophers.slice(0, 4) : []
-  const related = Array.isArray(concept.related_concepts) ? concept.related_concepts.slice(0, 3) : []
-  return (
-    <div className="mt-3 rounded-lg border border-ink-700 bg-ink-900/60 p-4">
-      <div className="flex flex-wrap items-baseline gap-2">
-        <h3 className="font-serif text-lg font-light text-mist-100">{concept.term}</h3>
-        {concept.branch && (
-          <span className="rounded border border-violet-400/40 px-1.5 py-0.5 text-[11px] uppercase tracking-wide text-violet-300">
-            {concept.branch}
-          </span>
-        )}
-      </div>
-      {concept.definition && <p className="mt-1.5 text-sm leading-relaxed text-mist-300">{concept.definition}</p>}
-
-      {philosophers.length > 0 && (
-        <div className="mt-4 flex items-start gap-0">
-          {philosophers.map((p, i) => (
-            <div key={i} className="relative flex-1 px-2 text-center">
-              {i > 0 && <span className="absolute right-1/2 top-[5px] h-px w-full bg-ink-700" />}
-              <div className="relative mx-auto mb-1.5 h-2.5 w-2.5 rounded-full bg-violet-400/70" />
-              <p className="text-xs font-medium text-mist-100">{p.name}</p>
-              {p.era && <p className="text-[11px] text-mist-500">{p.era}</p>}
-              {p.contribution && <p className="mt-0.5 text-[11px] leading-snug text-mist-400">{p.contribution}</p>}
-            </div>
-          ))}
-        </div>
-      )}
-
-      {related.length > 0 && (
-        <div className="mt-3 flex flex-wrap gap-1.5">
-          {related.map((r, i) => (
-            <span key={i} className="rounded-full border border-ink-700 px-2 py-0.5 text-[11px] text-mist-400">{r}</span>
-          ))}
-        </div>
-      )}
-    </div>
-  )
-}
-
-// §4i: recommendations render as small visual cards, not prose. Falls back gracefully to
-// the plain expandable summary when a cycle wrote no structured metadata. Per
-// field_investigation_method's visual-first rule: when a diagram/card already carries the
-// meaning (a roadmap or a concept card), the prose summary is dropped entirely rather than
-// rendered as a redundant paragraph above it.
-function RecommendationCard({ insight }) {
-  const [showSources, setShowSources] = useState(false)
-  const md = insight.metadata || {}
-  const hasPath = Array.isArray(md.path?.nodes) && md.path.nodes.length > 0
-  const hasConcept = !!md.concept?.term
-  const hasVisual = hasPath || hasConcept
-  return (
-    <div className="card border-t-2 border-gold-400/30 p-6">
-      {!hasVisual && (
-        <div className="flex items-start gap-2">
-          {md.icon && <span className="text-lg leading-none">{md.icon}</span>}
-          <p className="text-sm leading-relaxed text-mist-100">{insight.summary}</p>
-        </div>
-      )}
-
-      {hasPath && <PathDiagram path={md.path} />}
-      {hasConcept && <ConceptCard concept={md.concept} />}
-      {md.chart && <MiniBarChart chart={md.chart} />}
-
-      {md.suggestion && (
-        <p className="mt-3 rounded-lg border border-violet-400/20 bg-violet-500/5 px-3 py-2 text-xs text-violet-100">
-          <span className="font-medium text-violet-300">For you: </span>{md.suggestion}
-        </p>
-      )}
-
-      {Array.isArray(md.keywords_used) && md.keywords_used.length > 0 && (
-        <p className="mt-2 text-[13px] text-mist-500">researched via: {md.keywords_used.join(' · ')}</p>
-      )}
-
-      {insight.source_refs?.length > 0 && (
-        <div className="mt-3">
-          <button onClick={() => setShowSources(s => !s)} className="text-[13px] text-mist-500 hover:text-mist-300">
-            {showSources ? 'Hide sources' : `Sources (${insight.source_refs.length})`}
-          </button>
-          {showSources && <SourceRefs refs={insight.source_refs} />}
         </div>
       )}
     </div>
@@ -796,10 +295,11 @@ function WholePictureCard({ para, overview }) {
   )
 }
 
-// "Open loops" — captured-but-unfinished notes as progress-bar rows, days-open on the
-// right, bar width proportional to how long it's been open. Parses the day count and
-// title out of the template-generated open_loop summaries.
-function parseOpenLoop(insight) {
+// "Reminders" (formerly "Open loops") — things captured but never finished, read as
+// generic nudges ("go swimming", not "note X has sat in your inbox N days") with a
+// one-tap way to put one on today's Work plan. Parses the day count and title out of
+// the template-generated open_loop summaries the same way the old bars did.
+function parseReminder(insight) {
   const summary = insight.summary || ''
   const daysMatch = summary.match(/(\d+)\s*days?/)
   const days = daysMatch ? parseInt(daysMatch[1], 10) : null
@@ -812,11 +312,12 @@ function parseOpenLoop(insight) {
   return { id: insight.id, title, days, noteId: noteRef?.id }
 }
 
-function OpenLoopBars({ loops }) {
+function ReminderRows({ reminders }) {
   const scrollRef = useRef(null)
   const [overflowing, setOverflowing] = useState(false)
+  const [added, setAdded] = useState(() => new Set())
 
-  const rows = useMemo(() => (loops || []).map(parseOpenLoop), [loops])
+  const rows = useMemo(() => (reminders || []).map(parseReminder), [reminders])
 
   useEffect(() => {
     const el = scrollRef.current
@@ -824,32 +325,42 @@ function OpenLoopBars({ loops }) {
     setOverflowing(el.scrollHeight > el.clientHeight + 1)
   }, [rows])
 
-  if (!loops || loops.length === 0) {
-    return <p className="text-sm text-mist-400">No open loops — nothing captured-but-unfinished right now.</p>
+  async function addToDay(r) {
+    setAdded(prev => new Set(prev).add(r.id))
+    const today = new Date()
+    const due = `${today.getFullYear()}-${String(today.getMonth() + 1).padStart(2, '0')}-${String(today.getDate()).padStart(2, '0')}`
+    await fetch('/api/tasks', {
+      method: 'POST',
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({ title: r.title, note_id: r.noteId || null, due_date: due })
+    })
   }
-  const maxDays = Math.max(1, ...rows.map(r => r.days || 0))
+
+  if (!reminders || reminders.length === 0) {
+    return <p className="text-sm text-mist-400">No reminders right now.</p>
+  }
   return (
     <div className="relative">
-      <div ref={scrollRef} className="max-h-[268px] space-y-4 overflow-y-auto scrollbar-thin pr-1">
-        {rows.map((r, i) => {
-          const color = i === 0 ? PARA_COLORS.project : PARA_COLORS.resource
-          const pct = Math.max(12, Math.round(((r.days || 1) / maxDays) * 100))
-          return (
-            <div key={r.id}>
-              <div className="mb-1 flex items-baseline justify-between gap-2">
-                {r.noteId ? (
-                  <Link href={`/notes/${r.noteId}`} className="truncate text-sm text-mist-100 hover:text-emerald-300">{r.title}</Link>
-                ) : (
-                  <span className="truncate text-sm text-mist-100">{r.title}</span>
-                )}
-                <span className="shrink-0 text-xs text-mist-500">{r.days != null ? `${r.days} day${r.days === 1 ? '' : 's'} open` : 'open'}</span>
-              </div>
-              <div className="h-2 w-full overflow-hidden rounded-full bg-ink-800">
-                <div className="h-full rounded-full" style={{ width: `${pct}%`, background: color, boxShadow: `0 0 10px ${color}66` }} />
-              </div>
+      <div ref={scrollRef} className="max-h-[268px] space-y-3 overflow-y-auto scrollbar-thin pr-1">
+        {rows.map(r => (
+          <div key={r.id} className="flex items-center justify-between gap-3">
+            <div className="min-w-0">
+              {r.noteId ? (
+                <Link href={`/notes/${r.noteId}`} className="truncate text-sm text-mist-100 hover:text-emerald-300 block">{r.title}</Link>
+              ) : (
+                <span className="truncate text-sm text-mist-100 block">{r.title}</span>
+              )}
+              {r.days != null && <span className="text-xs text-mist-500">sitting for {r.days} day{r.days === 1 ? '' : 's'}</span>}
             </div>
-          )
-        })}
+            <button
+              onClick={() => addToDay(r)}
+              disabled={added.has(r.id)}
+              className="shrink-0 chip !py-1 hover:border-emerald-400/60 hover:text-emerald-300"
+            >
+              {added.has(r.id) ? '✓ added' : '+ add to my day'}
+            </button>
+          </div>
+        ))}
       </div>
       {overflowing && <div className="pointer-events-none absolute inset-x-0 bottom-0 h-10 bg-gradient-to-t from-ink-950 to-transparent" />}
     </div>
@@ -916,21 +427,20 @@ function AttentionChart({ series, caption }) {
   )
 }
 
-function OverviewTab({ data, loading, running, runStage, runNow, refreshPrompt, cycle, feedItems, stats, topics, library }) {
+function OverviewTab({ data, loading, running, runStage, refreshPrompt, cycle, feedItems, stats, topics, library }) {
   const hasAnything = data && (data.overview || [...KIND_ORDER, 'user_model', 'recommendation'].some(k => data.byKind[k]?.length))
-  const recommendations = data ? data.byKind.recommendation || [] : []
-  const runLabel = runStage === 'embedding' ? 'Indexing notes…' : runStage === 'synthesizing' ? 'Running…' : 'Run now'
+  const runLabel = runStage === 'embedding' ? 'Indexing notes…' : 'Syncing…'
 
   return (
     <>
       {/* §4j: always-on breaking-news strip across the top of the Overview page */}
       <NewsStrip items={feedItems} />
 
-      <div className="mb-8 flex justify-end">
-        <button onClick={runNow} disabled={running} className="btn-primary">
-          {runLabel}
-        </button>
-      </div>
+      {running && (
+        <div className="mb-8 flex justify-end">
+          <span className="text-xs uppercase tracking-[0.14em] text-mist-500">{runLabel}</span>
+        </div>
+      )}
 
       {loading && <p className="text-mist-400">Loading…</p>}
 
@@ -942,19 +452,20 @@ function OverviewTab({ data, loading, running, runStage, runNow, refreshPrompt, 
 
       {!loading && !hasAnything && data?.lastUpdated && (
         <p className="text-sm text-mist-400">
-          No insights yet. Click "Run now" to generate the four templated kinds, or ask Claude Code to write the overview (see above).
+          No insights yet. The Mind Model refreshes automatically every couple of minutes while this page is open,
+          or ask Claude Code to write the overview (see above).
         </p>
       )}
 
       {!loading && hasAnything && (
         <>
-          {/* Mockup top row: The Whole Picture (donut) · Open Loops (bars) · Attention Patterns (line) */}
+          {/* Mockup top row: The Whole Picture (donut) · Reminders (rows) · Attention Patterns (line) */}
           <div className="grid gap-6 lg:grid-cols-3">
             <WholePictureCard para={stats?.para} overview={data.overview} />
 
             <div className="card flex h-full flex-col border-t-2 border-emerald-400/40 p-6">
-              <p className="label mb-4 !text-emerald-300">Open loops</p>
-              <OpenLoopBars loops={data.byKind.open_loop} />
+              <p className="label mb-4 !text-emerald-300">Reminders</p>
+              <ReminderRows reminders={data.byKind.open_loop} />
             </div>
 
             <div className="card flex h-full flex-col border-t-2 border-emerald-400/40 p-6">
@@ -966,134 +477,7 @@ function OverviewTab({ data, loading, running, runStage, runNow, refreshPrompt, 
           <div className="mt-6">
             <KnowledgeGalaxy goals={data.byKind.inferred_goal} topics={topics} library={library} />
           </div>
-
-          <div className="mt-6">
-            <GoalArrowChart goals={data.byKind.inferred_goal} />
-          </div>
-
-          <p className="label mb-4 mt-10 !text-gold-400">Field Investigation Report</p>
-          {recommendations.length > 0 ? (
-            <div className="grid gap-6 md:grid-cols-2">
-              {recommendations.map(insight => (
-                <RecommendationCard key={insight.id} insight={insight} />
-              ))}
-            </div>
-          ) : (
-            <div className="card p-6">
-              <p className="text-sm text-mist-400">Nothing investigated yet.</p>
-            </div>
-          )}
         </>
-      )}
-    </>
-  )
-}
-
-// §4d: the answer-picking + custom-text-input mechanic for a PARA-fun queue item.
-// Keyed by item.id at the call site so its custom-text state resets cleanly between
-// questions.
-function AnswerControls({ item, onAnswer, submitting }) {
-  const [customText, setCustomText] = useState('')
-  const [showCustom, setShowCustom] = useState(false)
-
-  const assumedLabel = item.assumed_answer?.label
-
-  function pick(option) {
-    if (option.action === 'custom') {
-      setShowCustom(true)
-      return
-    }
-    onAnswer(item.id, { action: option.action, value: option.value })
-  }
-
-  function submitCustom() {
-    if (!customText.trim()) return
-    let value
-    if (item.question_type === 'sort_inbox') return // no custom path for an exhaustive choice
-    if (item.question_type === 'new_capture_proposal') value = { title: customText.trim(), para: 'inbox', content: null }
-    else if (item.assumed_answer?.action === 'distill') value = { executive_summary: customText.trim() }
-    else value = { title: customText.trim() }
-    const action = item.question_type === 'new_capture_proposal' ? 'create_capture' : (item.assumed_answer?.action === 'distill' ? 'distill' : 'create_task')
-    onAnswer(item.id, { action, value })
-  }
-
-  return (
-    <div>
-      {!showCustom ? (
-        <div className="flex flex-wrap gap-3">
-          {item.options.map((opt, i) => {
-            const isAssumed = opt.label === assumedLabel
-            const isSkip = opt.action === 'skip'
-            return (
-              <button
-                key={i}
-                onClick={() => pick(opt)}
-                disabled={submitting}
-                className={
-                  isAssumed
-                    ? 'btn-primary !px-6 !py-3 text-base'
-                    : isSkip
-                      ? 'btn-ghost !px-4'
-                      : 'btn-secondary !px-6 !py-3 text-base'
-                }
-              >
-                {isAssumed ? `${opt.label} (suggested)` : opt.label}
-              </button>
-            )
-          })}
-        </div>
-      ) : (
-        <div className="space-y-3">
-          <input
-            className="input"
-            autoFocus
-            placeholder="Write your own…"
-            value={customText}
-            onChange={e => setCustomText(e.target.value)}
-            onKeyDown={e => { if (e.key === 'Enter') submitCustom() }}
-          />
-          <div className="flex gap-3">
-            <button onClick={submitCustom} disabled={submitting || !customText.trim()} className="btn-primary">Submit</button>
-            <button onClick={() => setShowCustom(false)} className="btn-secondary">Back</button>
-          </div>
-        </div>
-      )}
-    </div>
-  )
-}
-
-// §4d: one question at a time, big tappable buttons, not a form. The assumed
-// answer is highlighted as the default; "write my own" only shows up when the
-// row's own options include a custom entry (sort_inbox questions don't, since
-// the four PARA buckets are already exhaustive).
-function ParaFunCard({ item, onAnswer, submitting }) {
-  return (
-    <div className="card border-t-2 border-emerald-400/40 p-8">
-      <p className="label mb-3 !text-emerald-300">{item.section}</p>
-      <h2 className="mb-6 font-serif text-2xl font-light text-mist-100">{item.question_text}</h2>
-      <AnswerControls key={item.id} item={item} onAnswer={onAnswer} submitting={submitting} />
-      <SourceRefs refs={item.source_refs} />
-    </div>
-  )
-}
-
-function ParaFunTab({ queue, loading, onAnswer, submitting }) {
-  if (loading) return <p className="text-mist-400">Loading…</p>
-  if (queue.length === 0) {
-    return (
-      <p className="text-sm text-mist-400">
-        Nothing waiting right now. Ask Claude Code to refresh the Mind Model (Overview tab) to generate new questions.
-      </p>
-    )
-  }
-
-  const [current, ...rest] = queue
-
-  return (
-    <>
-      <ParaFunCard key={current.id} item={current} onAnswer={onAnswer} submitting={submitting} />
-      {rest.length > 0 && (
-        <p className="mt-4 text-center text-xs text-mist-500">{rest.length} more waiting</p>
       )}
     </>
   )
@@ -1437,15 +821,13 @@ export default function Mind({ user }) {
   const [data, setData] = useState(null)
   const [loading, setLoading] = useState(true)
   const [running, setRunning] = useState(false)
-  const [runStage, setRunStage] = useState('') // §4h: 'embedding' | 'synthesizing' | '' — shown on the Run now button
-  const [queue, setQueue] = useState([])
-  const [queueLoading, setQueueLoading] = useState(true)
+  const runningRef = useRef(false) // mirrors `running` for the auto-run interval's closure, which otherwise sees a stale value
+  const [runStage, setRunStage] = useState('') // §4h: 'embedding' | 'synthesizing' | '' — shown while auto-running
   const [sections, setSections] = useState([])
   const [topics, setTopics] = useState([])
   const [libraryEntries, setLibraryEntries] = useState([])
   const [cycles, setCycles] = useState(null)
   const [stats, setStats] = useState(null)
-  const [submitting, setSubmitting] = useState(false)
   const [onboarding, setOnboarding] = useState(null) // null = not yet checked; {onboarded:bool} once known
   const refreshPrompt = useMemo(() => buildRefreshPrompt(user), [user])
   // §4j: the feed section's items feed the Overview page's news strip.
@@ -1461,16 +843,6 @@ export default function Mind({ user }) {
       .then(d => {
         setData(d)
         setLoading(false)
-      })
-  }
-
-  function loadQueue() {
-    setQueueLoading(true)
-    return fetch('/api/mind/queue')
-      .then(r => r.json())
-      .then(rows => {
-        setQueue(rows)
-        setQueueLoading(false)
       })
   }
 
@@ -1528,7 +900,6 @@ export default function Mind({ user }) {
 
   useEffect(() => {
     load()
-    loadQueue()
     loadSections()
     loadTopics()
     loadLibrary()
@@ -1537,7 +908,18 @@ export default function Mind({ user }) {
     loadOnboarding()
   }, [])
 
+  // Auto-run the cycle every 2 minutes while this page stays open — replaces the old
+  // manual "Run now" button. Skips a tick if the previous run is still in flight.
+  useEffect(() => {
+    const id = setInterval(() => {
+      if (!runningRef.current) runNow()
+    }, 2 * 60 * 1000)
+    return () => clearInterval(id)
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [])
+
   async function runNow() {
+    runningRef.current = true
     setRunning(true)
     // §4h: embed any new/edited notes client-side first, so the synthesis job below
     // (interest_cluster's semantic grouping) sees fresh vectors. Best-effort — a
@@ -1556,21 +938,7 @@ export default function Mind({ user }) {
     await loadStats()
     setRunStage('')
     setRunning(false)
-  }
-
-  async function answerQueue(id, { action, value }) {
-    setSubmitting(true)
-    setQueue(prev => prev.filter(q => q.id !== id))
-    try {
-      const res = await fetch(`/api/mind/queue/${id}/answer`, {
-        method: 'POST',
-        headers: { 'content-type': 'application/json' },
-        body: JSON.stringify({ action, value })
-      })
-      if (!res.ok) await loadQueue() // resync if the optimistic removal was wrong
-    } finally {
-      setSubmitting(false)
-    }
+    runningRef.current = false
   }
 
   if (onboarding === null) {
@@ -1586,12 +954,12 @@ export default function Mind({ user }) {
   if (!onboarding.onboarded) {
     return (
       <Layout user={user}>
-        <Onboarding onComplete={() => { setOnboarding({ onboarded: true }); load(); loadQueue(); loadSections(); loadTopics(); loadLibrary(); loadCycles(); loadStats() }} />
+        <Onboarding onComplete={() => { setOnboarding({ onboarded: true }); load(); loadSections(); loadTopics(); loadLibrary(); loadCycles(); loadStats() }} />
       </Layout>
     )
   }
 
-  const headerTitle = tab === 'overview' ? 'Overview' : tab === 'library' ? 'Knowledge library' : tab === 'planner' ? 'Productivity support' : 'PARA co-sorting'
+  const headerTitle = tab === 'overview' ? 'Overview' : 'Knowledge library'
 
   return (
     <Layout user={user}>
@@ -1610,34 +978,18 @@ export default function Mind({ user }) {
             Overview
           </button>
           <button
-            onClick={() => setTab('parafun')}
-            className={`chip capitalize ${tab === 'parafun' ? 'border-emerald-400/50 text-emerald-300' : ''}`}
-          >
-            PARA co-sorting{queue.length > 0 ? ` (${queue.length})` : ''}
-          </button>
-          <button
             onClick={() => setTab('library')}
             className={`chip capitalize ${tab === 'library' ? 'border-emerald-400/50 text-emerald-300' : ''}`}
           >
             Knowledge library
           </button>
-          <button
-            onClick={() => setTab('planner')}
-            className={`chip capitalize ${tab === 'planner' ? 'border-emerald-400/50 text-emerald-300' : ''}`}
-          >
-            Productivity support
-          </button>
         </div>
       </div>
 
       {tab === 'overview' ? (
-        <OverviewTab data={data} loading={loading} running={running} runStage={runStage} runNow={runNow} refreshPrompt={refreshPrompt} cycle={cycles} feedItems={feedItems} stats={stats} topics={topics} library={libraryEntries} />
-      ) : tab === 'library' ? (
-        <KnowledgeLibraryTab />
-      ) : tab === 'planner' ? (
-        <ProductivityTab />
+        <OverviewTab data={data} loading={loading} running={running} runStage={runStage} refreshPrompt={refreshPrompt} cycle={cycles} feedItems={feedItems} stats={stats} topics={topics} library={libraryEntries} />
       ) : (
-        <ParaFunTab queue={queue} loading={queueLoading} onAnswer={answerQueue} submitting={submitting} />
+        <KnowledgeLibraryTab />
       )}
     </Layout>
   )

@@ -4,12 +4,8 @@ import { useState } from 'react'
 import ThemeToggle from './ThemeToggle'
 
 const NAV_ITEMS = [
-  { href: '/', label: 'Dashboard' },
-  { href: '/capture', label: 'Capture' },
-  { href: '/organize', label: 'Organize' },
-  { href: '/distill', label: 'Distill' },
-  { href: '/express', label: 'Express' },
-  { href: '/focus', label: 'Focus' },
+  { href: '/dashboard', label: 'Work' },
+  { href: '/', label: 'Organize' },
   { href: '/mind', label: 'Mind' },
   { href: '/other-brains', label: 'MINDVERSE' }
 ]
@@ -53,7 +49,6 @@ export default function Layout({ children, user }) {
           </nav>
 
           <div className="flex items-center gap-4">
-            {user && <span className="hidden text-xs text-mist-400 sm:inline">{user.email}</span>}
             <ThemeToggle />
             <button onClick={logout} disabled={loggingOut} className="btn-secondary !px-4 !py-1.5 text-xs">
               {loggingOut ? 'Signing out…' : 'Sign out'}

@@ -1,151 +1,103 @@
 import { useEffect, useState } from 'react'
-import Link from 'next/link'
+import { useRouter } from 'next/router'
 import Layout from '../components/Layout'
-import ParaBadge from '../components/ParaBadge'
-import MetricPeaksChart from '../components/MetricPeaksChart'
+import PARACube from '../components/PARACube'
+import TourOverlay from '../components/TourOverlay'
+import { GoalArrowChart, RecommendationCardBody } from '../components/InsightCards'
 import { requireSessionSSR } from '../lib/pageAuth'
 
-export default function Dashboard({ user }) {
-  const [stats, setStats] = useState(null)
-  const [loading, setLoading] = useState(true)
+// One report card visible at a time (ADHD constraint — same "read one-at-a-time"
+// posture as the rest of the app's queues), with prev/next arrows through the set.
+function FieldInvestigationReport({ recommendations }) {
+  const [index, setIndex] = useState(0)
+
+  if (recommendations.length === 0) {
+    return (
+      <div className="card p-6">
+        <p className="label mb-4 !text-gold-400">Field Investigation Report</p>
+        <p className="text-sm text-mist-400">Nothing investigated yet.</p>
+      </div>
+    )
+  }
+
+  const clamped = Math.min(index, recommendations.length - 1)
+  const current = recommendations[clamped]
+  const count = recommendations.length
+
+  return (
+    <div className="card p-6">
+      <div className="mb-4 flex items-center justify-between gap-3">
+        <p className="label !text-gold-400">Field Investigation Report</p>
+        {count > 1 && (
+          <div className="flex items-center gap-2 text-xs text-mist-500">
+            <button
+              onClick={() => setIndex(i => (i - 1 + count) % count)}
+              aria-label="Previous"
+              className="rounded border border-ink-700 px-1.5 py-0.5 hover:text-gold-300"
+            >
+              ‹
+            </button>
+            <span>{clamped + 1} / {count}</span>
+            <button
+              onClick={() => setIndex(i => (i + 1) % count)}
+              aria-label="Next"
+              className="rounded border border-ink-700 px-1.5 py-0.5 hover:text-gold-300"
+            >
+              ›
+            </button>
+          </div>
+        )}
+      </div>
+
+      <RecommendationCardBody insight={current} />
+    </div>
+  )
+}
+
+// The Organize tab: the CODE method's Organize/Distill/Express stages collapsed into
+// one cube-centric page. Sorting happens by clicking any note on the cube and picking
+// Distill or Move to in the action sheet; a distilled note can spin off tasks/packets
+// right there instead of a separate Express page. Capture now lives as a popup on
+// Work, so this page is read/organize-only.
+export default function Organize({ user }) {
+  const router = useRouter()
+  const [insights, setInsights] = useState(null)
+  const tag = typeof router.query.tag === 'string' ? router.query.tag : ''
 
   useEffect(() => {
-    fetch('/api/stats')
-      .then(r => r.json())
-      .then(data => {
-        setStats(data)
-        setLoading(false)
-      })
+    fetch('/api/mind/insights').then(r => r.json()).then(setInsights).catch(() => {})
   }, [])
 
-  async function completeTask(task) {
-    setStats(prev => ({
-      ...prev,
-      openTasks: prev.openTasks.filter(t => t.id !== task.id),
-      tasksOpen: prev.tasksOpen - 1,
-      tasksDone: prev.tasksDone + 1
-    }))
-    await fetch('/api/tasks/' + task.id, {
-      method: 'PUT',
-      headers: { 'content-type': 'application/json' },
-      body: JSON.stringify({ done: true })
-    })
-  }
+  const goals = insights?.byKind?.inferred_goal || []
+  const recommendations = insights?.byKind?.recommendation || []
 
   return (
     <Layout user={user}>
-      <div className="mb-10 flex flex-wrap items-end justify-between gap-4">
+      {/* Tour overlays are self-contained full-screen mockups keyed by step, not tied
+          to any real content on the page — all four CODE steps now route here. */}
+      <TourOverlay step="capture" />
+      <TourOverlay step="organize" />
+      <TourOverlay step="distill" />
+      <TourOverlay step="express" />
+
+      <div className="mb-6 flex flex-wrap items-center justify-between gap-3">
         <div>
-          <p className="label mb-2">Overview</p>
-          <h1 className="font-serif text-4xl font-light text-mist-100">
-            Welcome back{user?.email ? <>, <span className="text-gradient">{user.email.split('@')[0]}</span></> : ''}
-          </h1>
+          <p className="label mb-2">Organize</p>
+          <h1 className="font-serif text-4xl font-light text-mist-100">Sort, distill, act</h1>
         </div>
-        <Link href="/capture" className="btn-primary">
-          + Capture something
-        </Link>
+        {tag && (
+          <button onClick={() => router.push('/')} className="chip">
+            tag: {tag} ✕
+          </button>
+        )}
       </div>
 
-      {loading && <p className="text-mist-400">Loading your second brain…</p>}
+      <PARACube tag={tag} />
 
-      {stats && (
-        <>
-          {stats.para.inbox > 0 && (
-            <Link
-              href="/organize"
-              className="mb-8 flex items-center justify-between gap-4 rounded-xl border border-rose-400/30 bg-rose-500/5 p-4 transition hover:border-rose-400/50"
-            >
-              <span className="text-sm text-rose-200">
-                <strong className="text-rose-300">{stats.para.inbox}</strong> {stats.para.inbox === 1 ? 'item is' : 'items are'} waiting in your Inbox — a five-minute weekly review keeps it from piling up.
-              </span>
-              <span className="whitespace-nowrap text-sm text-rose-300">Process it →</span>
-            </Link>
-          )}
-
-          <MetricPeaksChart stats={stats} />
-
-          <div className="card mb-10 p-6">
-            <div className="mb-5 flex items-center justify-between">
-              <p className="label">Open tasks</p>
-              <Link href="/express" className="btn-ghost">
-                View all →
-              </Link>
-            </div>
-            {stats.openTasks.length === 0 ? (
-              <p className="text-sm text-mist-400">Nothing open. Add the next small step on a project in Express.</p>
-            ) : (
-              <div className="divide-y divide-ink-700">
-                {stats.openTasks.map(t => {
-                  const overdue = t.due_date && new Date(t.due_date) < new Date(new Date().toDateString())
-                  return (
-                    <div key={t.id} className="flex items-start gap-3 py-3">
-                      <input type="checkbox" checked={false} onChange={() => completeTask(t)} className="mt-1" />
-                      <div className="min-w-0 flex-1">
-                        <p className="text-sm text-mist-100">{t.title}</p>
-                        <div className="mt-1 flex flex-wrap items-center gap-2 text-xs text-mist-500">
-                          {t.note_title && (
-                            <Link href={`/notes/${t.note_id}`} className="hover:text-emerald-300">↳ {t.note_title}</Link>
-                          )}
-                          {t.due_date && (
-                            <span className={overdue ? 'text-red-400' : ''}>
-                              due {new Date(t.due_date).toLocaleDateString()}
-                            </span>
-                          )}
-                        </div>
-                      </div>
-                    </div>
-                  )
-                })}
-              </div>
-            )}
-          </div>
-
-          <div className="grid gap-6 lg:grid-cols-3">
-            <div className="card p-6 lg:col-span-2">
-              <div className="mb-5 flex items-center justify-between">
-                <p className="label">Recent captures</p>
-                <Link href="/organize" className="btn-ghost">
-                  View all →
-                </Link>
-              </div>
-              {stats.recent.length === 0 ? (
-                <p className="text-sm text-mist-400">Nothing captured yet. Start with your last 24 hours of ideas.</p>
-              ) : (
-                <div className="divide-y divide-ink-700">
-                  {stats.recent.map(n => (
-                    <Link
-                      key={n.id}
-                      href={`/notes/${n.id}`}
-                      className="flex items-center justify-between gap-4 py-3 transition hover:opacity-80"
-                    >
-                      <div className="min-w-0">
-                        <p className="truncate text-sm text-mist-100">{n.title}</p>
-                        <p className="text-xs text-mist-400">{new Date(n.created_at).toLocaleDateString()}</p>
-                      </div>
-                      <ParaBadge para={n.para} />
-                    </Link>
-                  ))}
-                </div>
-              )}
-            </div>
-
-            <div className="card p-6">
-              <p className="label mb-5">Top tags</p>
-              {stats.topTags.length === 0 ? (
-                <p className="text-sm text-mist-400">Tag your captures to see patterns emerge here.</p>
-              ) : (
-                <div className="flex flex-wrap gap-2">
-                  {stats.topTags.map(t => (
-                    <Link key={t.tag} href={`/organize?tag=${encodeURIComponent(t.tag)}`} className="chip hover:border-emerald-400/50 hover:text-emerald-300">
-                      {t.tag} <span className="ml-1 text-mist-500">{t.count}</span>
-                    </Link>
-                  ))}
-                </div>
-              )}
-            </div>
-          </div>
-        </>
-      )}
+      <div className="mt-6 grid gap-6 lg:grid-cols-2">
+        <GoalArrowChart goals={goals} />
+        <FieldInvestigationReport recommendations={recommendations} />
+      </div>
     </Layout>
   )
 }
