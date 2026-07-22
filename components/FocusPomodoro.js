@@ -1,11 +1,26 @@
 import { useEffect, useRef, useState } from 'react'
 import { shortenTitle } from '../lib/titleShorten'
+import { sounds } from '../lib/sounds'
+import { saveFocusSession, loadFocusSession, clearFocusSession } from '../lib/focusSession'
 
 const MODES = [
   { key: 'pomodoro', label: 'pomodoro', minutes: 25 },
   { key: 'short', label: 'short break', minutes: 5 },
   { key: 'long', label: 'long break', minutes: 15 }
 ]
+
+// Restores this item's saved clock, if the localStorage session belongs to it —
+// otherwise a fresh mode/time. Read once, synchronously, at mount (as the
+// initial state values below) so there's no flash of 25:00 before snapping to
+// the resumed time.
+function restoreFor(item) {
+  const saved = loadFocusSession()
+  if (saved && saved.itemKey === item.key) {
+    const mode = MODES.find(m => m.key === saved.mode) || MODES[0]
+    return { mode, secondsLeft: saved.secondsLeft, focusSeconds: saved.focusSeconds || 0 }
+  }
+  return { mode: MODES[0], secondsLeft: MODES[0].minutes * 60, focusSeconds: 0 }
+}
 
 function formatTime(totalSeconds) {
   const m = Math.floor(totalSeconds / 60)
@@ -18,16 +33,36 @@ function formatTime(totalSeconds) {
 // the task name ("Deep work block" instead of the full title), and the same
 // section breaking the task into smaller pieces while working it.
 export default function FocusPomodoro({ item, bgColorClass, textColorClass, pieces, onPiecesChange, onExit, onComplete, onLogFocus }) {
-  const [mode, setMode] = useState(MODES[0])
-  const [secondsLeft, setSecondsLeft] = useState(MODES[0].minutes * 60)
-  const [running, setRunning] = useState(false)
+  const [initial] = useState(() => restoreFor(item))
+  const [mode, setMode] = useState(initial.mode)
+  const [secondsLeft, setSecondsLeft] = useState(initial.secondsLeft)
+  const [running, setRunning] = useState(false) // always resumes paused — never silently counts closed-tab time
   const [newPiece, setNewPiece] = useState('')
   const [finishing, setFinishing] = useState(false)
   const [shortTitle, setShortTitle] = useState('')
   const intervalRef = useRef(null)
-  const focusSecondsRef = useRef(0)
+  const focusSecondsRef = useRef(initial.focusSeconds)
+  const [pauseFlash, setPauseFlash] = useState(false)
+  const pauseFlashTimeoutRef = useRef(null)
+
+  // A brief transparent-red pulse in the ring's center, timed to land exactly
+  // when a pause sound plays (the one-off pause blip, or the 15s "still paused"
+  // reminder) — a visual echo of the sound, not a separate warning.
+  function flashPause() {
+    setPauseFlash(true)
+    clearTimeout(pauseFlashTimeoutRef.current)
+    pauseFlashTimeoutRef.current = setTimeout(() => setPauseFlash(false), 350)
+  }
+  useEffect(() => () => clearTimeout(pauseFlashTimeoutRef.current), [])
 
   useEffect(() => () => clearInterval(intervalRef.current), [])
+
+  // Keeps the clock resumable across a refresh — mode/time/accumulated focus
+  // seconds are the only things that need to survive; running never does (see
+  // restoreFor's paused-on-load contract above).
+  useEffect(() => {
+    saveFocusSession(item.key, { mode: mode.key, secondsLeft, focusSeconds: focusSecondsRef.current })
+  }, [item.key, mode.key, secondsLeft])
 
   useEffect(() => {
     let cancelled = false
@@ -43,6 +78,10 @@ export default function FocusPomodoro({ item, bgColorClass, textColorClass, piec
         if (prev <= 1) {
           clearInterval(intervalRef.current)
           setRunning(false)
+          sounds.pomodoroEnd()
+          // Only a finished focus round is followed by a break suggestion — a
+          // finished break just means it's over, not another cue to rest.
+          if (mode.key === 'pomodoro') setTimeout(sounds.takeABreak, 900)
           return 0
         }
         if (mode.key === 'pomodoro') focusSecondsRef.current += 1
@@ -51,6 +90,21 @@ export default function FocusPomodoro({ item, bgColorClass, textColorClass, piec
     }, 1000)
     return () => clearInterval(intervalRef.current)
   }, [running, mode.key])
+
+  // A seatbelt-chime-style nudge: every 15s while genuinely paused mid-session
+  // (not before a first Start, when secondsLeft still sits at the mode's full
+  // length), a soft reminder plays so a paused clock doesn't just go forgotten.
+  useEffect(() => {
+    if (running || secondsLeft === mode.minutes * 60) return
+    const id = setInterval(() => { sounds.pausedReminder(); flashPause() }, 15000)
+    return () => clearInterval(id)
+  }, [running, secondsLeft, mode.minutes])
+
+  function toggleRun() {
+    if (running) { sounds.pomodoroPause(); flashPause() }
+    else sounds.startingTask()
+    setRunning(r => !r)
+  }
 
   function selectMode(m) {
     clearInterval(intervalRef.current)
@@ -81,6 +135,7 @@ export default function FocusPomodoro({ item, bgColorClass, textColorClass, piec
     clearInterval(intervalRef.current)
     setFinishing(true)
     if (focusSecondsRef.current >= 60) onLogFocus(Math.round(focusSecondsRef.current / 60))
+    clearFocusSession()
     await onComplete()
   }
 
@@ -120,6 +175,7 @@ export default function FocusPomodoro({ item, bgColorClass, textColorClass, piec
             style={{ transition: 'stroke-dashoffset 1s linear' }}
           />
         </svg>
+        <div className={`absolute h-36 w-36 rounded-full transition-colors duration-200 ${pauseFlash ? 'bg-red-500/25' : 'bg-transparent'}`} />
         <div>
           <p className="font-serif text-3xl font-light text-mist-100">{formatTime(secondsLeft)}</p>
           <p className="mt-1 text-[11px] uppercase tracking-[0.2em] text-mist-400">
@@ -129,7 +185,7 @@ export default function FocusPomodoro({ item, bgColorClass, textColorClass, piec
       </div>
 
       <div className="mt-6 flex justify-center gap-3">
-        <button onClick={() => setRunning(r => !r)} className={`rounded-full px-6 py-2 text-sm font-semibold text-white ${bgColorClass} hover:brightness-110`}>
+        <button onClick={toggleRun} className={`rounded-full px-6 py-2 text-sm font-semibold text-white ${bgColorClass} hover:brightness-110`}>
           {running ? 'Pause' : secondsLeft === total ? 'Start' : 'Resume'}
         </button>
         <button onClick={reset} className="btn-secondary">Reset</button>

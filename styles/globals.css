@@ -304,6 +304,15 @@
   100% { opacity: 0; }
 }
 
+/* ReminderToast.js — a gentle slide-and-fade in from the corner, never a jarring pop. */
+@keyframes reminder-toast-in {
+  from { transform: translateY(12px); opacity: 0; }
+  to { transform: translateY(0); opacity: 1; }
+}
+.reminder-toast-in {
+  animation: reminder-toast-in 0.35s ease;
+}
+
 /* The OS-level reduced-motion preference kills non-essential looping animation:
    the news ticker and any pulsing status dots. ParticleField/WaveVisualizer read
    the same signal directly in JS and fall back to a single static frame instead
@@ -318,7 +327,8 @@
   .celebrate-ring,
   .celebrate-ring-bonus,
   .celebrate-badge,
-  .celebrate-check {
+  .celebrate-check,
+  .reminder-toast-in {
     animation: none !important;
   }
 }

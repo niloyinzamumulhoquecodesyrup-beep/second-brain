@@ -1,7 +1,9 @@
-import { useEffect, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import { toYMD, dayEntries } from '../lib/plannerDay'
 import FocusPomodoro from './FocusPomodoro'
 import CompletionCelebration from './CompletionCelebration'
+import { sounds } from '../lib/sounds'
+import { loadFocusSession, clearFocusSession } from '../lib/focusSession'
 
 function dateOnly(v) {
   return v ? String(v).slice(0, 10) : null
@@ -170,6 +172,27 @@ export default function TodayCards({ tasks, onToggle: onToggleTask, onDelete: on
   ]
   const byKey = Object.fromEntries(items.map(i => [i.key, i]))
 
+  // Resumes a focus session that survived a page refresh (lib/focusSession.js) —
+  // waits for the routine fetch to land too, since a saved routine session can't
+  // be matched until routineEntries exists. Gives up (and clears the stale save)
+  // once planner has loaded and the item still isn't found — e.g. the task got
+  // deleted while the tab was away.
+  const restoreAttemptedRef = useRef(false)
+  useEffect(() => {
+    if (restoreAttemptedRef.current || !planner) return
+    const saved = loadFocusSession()
+    if (saved) {
+      const match = byKey[saved.itemKey]
+      if (match) {
+        setFocusItem(match)
+        setFocusStage('focus')
+      } else {
+        clearFocusSession()
+      }
+    }
+    restoreAttemptedRef.current = true
+  }, [planner, byKey])
+
   const sortedKeys = [...items]
     .sort((a, b) => {
       if (a.done !== b.done) return a.done ? 1 : -1
@@ -273,15 +296,16 @@ export default function TodayCards({ tasks, onToggle: onToggleTask, onDelete: on
   // Marking done (not un-marking) fires the celebration — the card itself just
   // stays in the list afterward, ticked, instead of disappearing.
   async function toggleTaskDone(item) {
-    if (!item.done) setCelebrating(true)
+    if (!item.done) { setCelebrating(true); sounds.taskDone() }
     await onToggleTask(item.raw)
   }
   async function toggleRoutineDone(item) {
-    if (!item.done) setCelebrating(true)
+    if (!item.done) { setCelebrating(true); sounds.taskDone() }
     await toggleRoutine(item)
   }
 
   function startFocus(item) {
+    sounds.startingTask()
     setFocusItem(item)
     setFocusStage('toFocus')
   }
@@ -291,7 +315,7 @@ export default function TodayCards({ tasks, onToggle: onToggleTask, onDelete: on
   function handleFocusTransitionEnd(e) {
     if (e.target !== e.currentTarget || e.propertyName !== 'opacity') return
     if (focusStage === 'toFocus') setFocusStage('focus')
-    else if (focusStage === 'toList') { setFocusStage('list'); setFocusItem(null) }
+    else if (focusStage === 'toList') { setFocusStage('list'); setFocusItem(null); clearFocusSession() }
   }
 
   function getPieces(item) {
