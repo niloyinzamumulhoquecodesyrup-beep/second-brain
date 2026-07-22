@@ -2,7 +2,9 @@ import { useEffect, useState } from 'react'
 import { useRouter } from 'next/router'
 import Layout from '../components/Layout'
 import PARACube from '../components/PARACube'
+import MindMap from '../components/MindMap'
 import TourOverlay from '../components/TourOverlay'
+import CaptureModal from '../components/CaptureModal'
 import { GoalArrowChart, RecommendationCardBody } from '../components/InsightCards'
 import { requireSessionSSR } from '../lib/pageAuth'
 
@@ -55,13 +57,14 @@ function FieldInvestigationReport({ recommendations }) {
 }
 
 // The Organize tab: the CODE method's Organize/Distill/Express stages collapsed into
-// one cube-centric page. Sorting happens by clicking any note on the cube and picking
-// Distill or Move to in the action sheet; a distilled note can spin off tasks/packets
-// right there instead of a separate Express page. Capture now lives as a popup on
-// Work, so this page is read/organize-only.
+// one cube-centric page, plus a one-tap Capture popup for anything new. Sorting
+// happens by clicking any note on the cube and picking Distill or Move to in the
+// action sheet; a distilled note can spin off tasks/packets right there instead of
+// a separate Express page.
 export default function Organize({ user }) {
   const router = useRouter()
   const [insights, setInsights] = useState(null)
+  const [capturing, setCapturing] = useState(false)
   const tag = typeof router.query.tag === 'string' ? router.query.tag : ''
 
   useEffect(() => {
@@ -85,19 +88,30 @@ export default function Organize({ user }) {
           <p className="label mb-2">Organize</p>
           <h1 className="font-serif text-4xl font-light text-mist-100">Sort, distill, act</h1>
         </div>
-        {tag && (
-          <button onClick={() => router.push('/')} className="chip">
-            tag: {tag} ✕
+        <div className="flex items-center gap-2">
+          {tag && (
+            <button onClick={() => router.push('/')} className="chip">
+              tag: {tag} ✕
+            </button>
+          )}
+          <button onClick={() => setCapturing(true)} className="btn-primary">
+            + Capture
           </button>
-        )}
+        </div>
       </div>
 
       <PARACube tag={tag} />
+
+      <div className="mt-6">
+        <MindMap />
+      </div>
 
       <div className="mt-6 grid gap-6 lg:grid-cols-2">
         <GoalArrowChart goals={goals} />
         <FieldInvestigationReport recommendations={recommendations} />
       </div>
+
+      {capturing && <CaptureModal onClose={() => setCapturing(false)} />}
     </Layout>
   )
 }

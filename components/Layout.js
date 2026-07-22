@@ -4,7 +4,7 @@ import { useState } from 'react'
 import ThemeToggle from './ThemeToggle'
 
 const NAV_ITEMS = [
-  { href: '/dashboard', label: 'Work' },
+  { href: '/work', label: 'Work' },
   { href: '/', label: 'Organize' },
   { href: '/mind', label: 'Mind' },
   { href: '/other-brains', label: 'MINDVERSE' }

@@ -1,11 +1,14 @@
 import { createContext, useContext, useEffect, useState, useCallback } from 'react'
 import { useRouter } from 'next/router'
 
-// A one-time, forced guided tour: Mind (welcome) -> Capture -> Organize -> Distill ->
-// Express -> Mind (summary), run once right after onboarding, before the account sees
-// its own (still empty) Mind Model. Purely a simulated overlay per the product decision
-// this was built to — no demo notes/tasks/packets are ever written; each page's own
-// TourOverlay renders a self-contained mockup instead of touching real state.
+// A one-time, forced guided tour: Mind (welcome) -> Work -> Capture -> Organize ->
+// Distill -> Express -> Mind (summary), run once right after onboarding, before the
+// account sees its own (still empty) Mind Model. Work comes right after welcome so
+// the ADHD-support side (tasks, planner, focus, rewards) — the app's actual "doing"
+// core — gets introduced before the knowledge-management side. Purely a simulated
+// overlay per the product decision this was built to — no demo notes/tasks/packets
+// are ever written; each page's own TourOverlay renders a self-contained mockup
+// instead of touching real state.
 //
 // `active` is the single source of truth for "is the tour still owed" (users.
 // tour_completed_at IS NULL, mirrored from GET /api/tour/status). `step` is UI-only
@@ -13,9 +16,10 @@ import { useRouter } from 'next/router'
 // where it left off rather than silently skipping ahead or restarting — losing it just
 // means the tour restarts at step 0, which is an acceptable one-time-experience cost.
 const STEP_KEY = 'sb_tour_step'
-export const TOUR_STEPS = ['welcome', 'capture', 'organize', 'distill', 'express', 'summary']
+export const TOUR_STEPS = ['welcome', 'work', 'capture', 'organize', 'distill', 'express', 'summary']
 export const TOUR_PATH = {
   welcome: '/mind',
+  work: '/work',
   capture: '/',
   organize: '/',
   distill: '/',

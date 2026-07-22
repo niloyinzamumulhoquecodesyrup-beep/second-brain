@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react'
 import { useTour, TOUR_STEPS } from './TourProvider'
+import CompletionCelebration from './CompletionCelebration'
 
 // A single field's value "typing" itself into a read-only, input-styled box — the
 // simulated-overlay stand-in for auto-filling the real form on this page. Never wired
@@ -34,13 +35,69 @@ function TypingField({ label, value, delay = 0, multiline = false }) {
   )
 }
 
+// The `work` step's demo: a simulated Today card, a one-line focus ring, and a
+// small reward-gauge mockup — then, once, the real CompletionCelebration fires on
+// top of it so the "task checked off" moment is the genuine animation, not a
+// static drawing of one. Nothing here is a real task; it's a mockup like every
+// other tour step's TypingField.
+function WorkDemo() {
+  const [celebrating, setCelebrating] = useState(false)
+  useEffect(() => {
+    const t = setTimeout(() => setCelebrating(true), 700)
+    return () => clearTimeout(t)
+  }, [])
+
+  return (
+    <div className="space-y-3">
+      <div>
+        <label className="mb-1 block text-[11px] uppercase tracking-wider text-mist-500">Today</label>
+        <div className="rounded-xl bg-emerald-400 px-3 py-2 text-white shadow-sm">
+          <div className="flex items-center gap-2.5">
+            <span className="flex h-7 w-7 shrink-0 items-center justify-center rounded-full bg-white/25 text-sm">📝</span>
+            <span className="min-w-0 flex-1 truncate text-sm font-semibold">Reply to Sam about the proposal</span>
+            <span className="flex h-6 w-6 shrink-0 items-center justify-center rounded-full border-2 border-white/70 text-xs">✓</span>
+          </div>
+          <div className="mt-1 pl-9 text-xs text-white/80">09:00 – 09:30</div>
+        </div>
+      </div>
+
+      <div className="flex items-center gap-4">
+        <div className="flex flex-1 flex-col items-center gap-1 rounded-xl border border-ink-700 bg-ink-900 px-3 py-3">
+          <p className="text-[11px] uppercase tracking-wide text-mist-500">Focus, when you want it</p>
+          <div className="relative mt-1 flex h-14 w-14 items-center justify-center rounded-full border-4 border-orange-400/60">
+            <span className="font-serif text-xs text-mist-100">18:24</span>
+          </div>
+        </div>
+        <div className="flex flex-1 items-end justify-around gap-2 rounded-xl border border-ink-700 bg-ink-950/40 px-3 py-3">
+          {[{ label: 'Streak', h: 55, c: '#f0d9a3' }, { label: 'Capture', h: 70, c: '#5eead4' }, { label: 'Tasks', h: 40, c: '#b7a6f7' }, { label: 'Focus', h: 85, c: '#fb923c' }].map(g => (
+            <div key={g.label} className="flex flex-col items-center gap-1">
+              <div className="flex h-10 w-3 items-end overflow-hidden rounded-full bg-ink-800">
+                <div className="w-full rounded-full" style={{ height: `${g.h}%`, background: g.c }} />
+              </div>
+              <p className="text-[8px] text-mist-500">{g.label}</p>
+            </div>
+          ))}
+        </div>
+      </div>
+
+      {celebrating && <CompletionCelebration onDone={() => setCelebrating(false)} />}
+    </div>
+  )
+}
+
 // Step content: a short title/description plus an optional demo mockup. Timings are
 // staggered so fields fill in one after another rather than all at once.
 const STEP_CONTENT = {
   welcome: {
     title: 'A quick look at how this works',
-    body: "Before your own Mind Model, here's a 90-second walkthrough with sample data — Capture, Organize, Distill, Express, and what it all builds toward.",
-    cta: 'Start tour'
+    body: "Here's a short walkthrough with sample data — your workspace first, then Capture, Organize, Distill, Express, and what it all builds toward. No pressure, and you can skip ahead any time.",
+    cta: 'Next: Your workspace'
+  },
+  work: {
+    title: 'Your workspace',
+    body: "This is where the actual doing happens — today's tasks, a focus timer for whenever you want one, and a few gentle signals that you're making progress. No countdowns, nothing that turns red if you miss a day.",
+    demo: <WorkDemo />,
+    cta: 'Next: Capture'
   },
   capture: {
     title: 'Capture',

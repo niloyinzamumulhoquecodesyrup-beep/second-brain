@@ -1,4 +1,5 @@
 import { useMemo, useState } from 'react'
+import { levelInfo, medianTarget } from '../lib/rewardLevels'
 
 // Original, unattributed lines — short and concrete rather than "grind harder" — aimed
 // at the ADHD-specific fight (starting, not effort) rather than generic motivation.
@@ -145,6 +146,21 @@ function TankGauge({ label, value, target, color }) {
   )
 }
 
+// TankGauge (today's fill) plus a lifetime level + progress bar toward the next
+// one underneath — level is a pure function of the lifetime total (see
+// lib/rewardLevels.js), so unlike the streak itself it never goes backward.
+function DimensionColumn({ label, value, target, color, level, progress }) {
+  return (
+    <div className="flex flex-col items-center gap-1.5">
+      <TankGauge label={label} value={value} target={target} color={color} />
+      <p className="text-[10px] font-semibold text-mist-300">Lv {level}</p>
+      <div className="h-1 w-14 overflow-hidden rounded-full bg-ink-700">
+        <div className="h-full rounded-full transition-[width]" style={{ width: `${Math.round(progress * 100)}%`, background: color }} />
+      </div>
+    </div>
+  )
+}
+
 export default function RewardPanel({ stats }) {
   const [quoteOffset, setQuoteOffset] = useState(0)
 
@@ -178,11 +194,16 @@ export default function RewardPanel({ stats }) {
 
   const quote = QUOTES[(dayOfYear() + quoteOffset) % QUOTES.length]
 
+  // Four fixed dimensions (Consistency/Capture/Follow-through/Focus). Today's
+  // gauge target adapts to what's actually typical — the median of the last 7
+  // days for that dimension — instead of a flat 3, so the tank stays reachable.
+  // Streak keeps a steady target: it isn't a per-day count to take a median of,
+  // and 7 already lines up with the existing streak_7 badge below.
   const gauges = [
-    { label: 'Streak', value: streak, target: 7, color: '#f0d9a3' },
-    { label: 'Captures', value: todayNotes, target: 3, color: '#5eead4' },
-    { label: 'Tasks done', value: todayTasks, target: 3, color: '#b7a6f7' },
-    { label: 'Focus sessions', value: todayFocus, target: 3, color: '#fb923c' }
+    { label: 'Streak', value: streak, target: 7, color: '#f0d9a3', ...levelInfo(streak) },
+    { label: 'Captures', value: todayNotes, target: medianTarget(stats?.capturesByDay), color: '#5eead4', ...levelInfo(stats?.totalNotes) },
+    { label: 'Tasks done', value: todayTasks, target: medianTarget(stats?.tasksDoneByDay), color: '#b7a6f7', ...levelInfo(stats?.tasksDone) },
+    { label: 'Focus sessions', value: todayFocus, target: medianTarget(stats?.focusSessionsByDay), color: '#fb923c', ...levelInfo(stats?.focusSessionsTotal) }
   ]
 
   return (
@@ -225,9 +246,9 @@ export default function RewardPanel({ stats }) {
           </div>
         </div>
 
-        <div className="flex items-start justify-around gap-2 rounded-xl border border-ink-700 bg-ink-950/40 px-3 py-4 sm:justify-between">
+        <div className="grid grid-cols-2 gap-3 rounded-xl border border-ink-700 bg-ink-950/40 px-3 py-4 sm:grid-cols-4">
           {gauges.map(g => (
-            <TankGauge key={g.label} {...g} />
+            <DimensionColumn key={g.label} {...g} />
           ))}
         </div>
       </div>

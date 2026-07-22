@@ -9,19 +9,23 @@ async function handler(req, res) {
   const { id } = req.query
 
   if (req.method === 'PUT') {
-    const { title, done, due_date } = req.body || {}
+    const { title, done, due_date, start_min, duration_min, pieces } = req.body || {}
     const before = await pool.query('SELECT done FROM tasks WHERE id=$1 AND user_id=$2', [id, userId])
     if (!before.rows[0]) return res.status(404).json({ error: 'Not found' })
     const wasDone = before.rows[0].done
+    const piecesParam = Array.isArray(pieces) ? JSON.stringify(pieces) : null
 
     const { rows } = await pool.query(
       `UPDATE tasks SET
         title = COALESCE($1, title),
         done = COALESCE($2, done),
         due_date = COALESCE($3, due_date),
+        start_min = COALESCE($4, start_min),
+        duration_min = COALESCE($5, duration_min),
+        pieces = COALESCE($6::jsonb, pieces),
         completed_at = CASE WHEN $2 = true THEN now() WHEN $2 = false THEN NULL ELSE completed_at END
-       WHERE id = $4 AND user_id = $5 RETURNING *`,
-      [title, done, due_date, id, userId]
+       WHERE id = $7 AND user_id = $8 RETURNING *`,
+      [title, done, due_date, start_min, duration_min, piecesParam, id, userId]
     )
     if (!rows[0]) return res.status(404).json({ error: 'Not found' })
     if (done === true && !wasDone) {

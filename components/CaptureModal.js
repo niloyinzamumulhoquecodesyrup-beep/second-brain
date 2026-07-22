@@ -1,10 +1,10 @@
 import { useEffect } from 'react'
 import CaptureSection from './CaptureSection'
 
-// The Work tab's quick-capture popup — same form as the old standalone Capture page,
-// just reachable from a button instead of a swipe. Left open after a save (status
-// message shows inline) so a burst of captures doesn't require reopening the modal
-// each time; the user closes it themselves when done.
+// The Organize tab's quick-capture popup — same form as the old standalone Capture
+// page, just reachable from a button instead of a swipe. Left open after a save
+// (status message shows inline) so a burst of captures doesn't require reopening
+// the modal each time; the user closes it themselves when done.
 export default function CaptureModal({ onClose }) {
   useEffect(() => {
     function onKey(e) { if (e.key === 'Escape') onClose() }

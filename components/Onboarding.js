@@ -8,6 +8,7 @@ const PERSONA_OPTIONS = [
   { value: 'Business / entrepreneur', label: 'Business / entrepreneur' },
   { value: 'Researcher / academic', label: 'Researcher / academic' },
   { value: 'Just getting organized', label: 'Just getting organized' },
+  { value: 'Focus & follow-through support', label: 'Focus & follow-through support' },
   { value: 'other', label: 'Other…' }
 ]
 
@@ -165,7 +166,7 @@ export default function Onboarding({ onComplete }) {
         {step === 'hello' && (
           <>
             <h1 className="font-serif text-4xl font-light text-mist-100 [text-shadow:0_2px_30px_rgba(0,0,0,0.8)]">Hello.</h1>
-            <p className="mt-3 text-sm text-mist-400">Press start to initiate your second brain.</p>
+            <p className="mt-3 text-sm text-mist-400">Press start, and let's set up a system that actually helps you follow through — no pressure, nothing to keep up with.</p>
             <button onClick={start} className="btn-primary mt-8 !px-8 !py-3 text-base">Start</button>
           </>
         )}
