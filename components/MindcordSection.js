@@ -49,6 +49,83 @@ function HangUpIcon({ size = 18 }) {
   )
 }
 
+function ScreenShareIcon({ on, size = 13 }) {
+  return (
+    <svg viewBox="0 0 20 20" width={size} height={size} fill="none" stroke="currentColor" strokeWidth="1.6" aria-hidden="true">
+      <rect x="2.5" y="4" width="15" height="10" rx="1.5" />
+      {on ? (
+        <path d="M7 17.5h6M10 14v3.5M6.5 8.5l2.5 2.5 2-2 2.5 2.5" strokeLinecap="round" strokeLinejoin="round" />
+      ) : (
+        <path d="M7 17.5h6M10 14v3.5M10 6.5v4M8 8.5l2-2 2 2" strokeLinecap="round" strokeLinejoin="round" />
+      )}
+    </svg>
+  )
+}
+
+function PaperclipIcon({ size = 14 }) {
+  return (
+    <svg viewBox="0 0 20 20" width={size} height={size} fill="none" stroke="currentColor" strokeWidth="1.6" aria-hidden="true">
+      <path d="M13.5 6.5l-6 6a2.5 2.5 0 003.54 3.54l6.3-6.3a4 4 0 00-5.66-5.66l-6.3 6.3a5.5 5.5 0 007.78 7.78" strokeLinecap="round" strokeLinejoin="round" />
+    </svg>
+  )
+}
+
+function FileIcon({ size = 16 }) {
+  return (
+    <svg viewBox="0 0 20 20" width={size} height={size} fill="none" stroke="currentColor" strokeWidth="1.5" aria-hidden="true">
+      <path d="M5 2.5h6l4 4v11a.5.5 0 01-.5.5h-9a.5.5 0 01-.5-.5v-14a.5.5 0 01.5-.5z" strokeLinejoin="round" />
+      <path d="M11 2.5V7h4" strokeLinejoin="round" />
+    </svg>
+  )
+}
+
+function formatFileSize(bytes) {
+  if (!bytes && bytes !== 0) return ''
+  if (bytes < 1024) return `${bytes} B`
+  if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(1)} KB`
+  return `${(bytes / (1024 * 1024)).toFixed(1)} MB`
+}
+
+const MAX_UPLOAD_BYTES = 5 * 1024 * 1024
+const ALLOWED_UPLOAD_MIME = new Set([
+  'image/png', 'image/jpeg', 'image/gif', 'image/webp',
+  'application/pdf', 'text/plain', 'text/csv',
+  'application/zip',
+  'application/msword',
+  'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
+  'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'
+])
+
+function readFileAsBase64(file) {
+  return new Promise((resolve, reject) => {
+    const reader = new FileReader()
+    reader.onload = () => resolve(String(reader.result).split(',')[1] || '')
+    reader.onerror = () => reject(reader.error)
+    reader.readAsDataURL(file)
+  })
+}
+
+function ExpandIcon({ size = 12 }) {
+  return (
+    <svg viewBox="0 0 20 20" width={size} height={size} fill="none" stroke="currentColor" strokeWidth="1.8" aria-hidden="true">
+      <path d="M7 3H3v4M13 3h4v4M3 13v4h4M17 13v4h-4" strokeLinecap="round" strokeLinejoin="round" />
+    </svg>
+  )
+}
+
+// Fullscreens the clicked tile element itself (not the whole call section) via the
+// standard Fullscreen API -- since the tile is just a div wrapping a <video>, this
+// blows up exactly that participant's feed to fill the screen, with a plain click to
+// return (toggling the same element back out) rather than a separate close control.
+function toggleTileFullscreen(el) {
+  if (!el) return
+  if (document.fullscreenElement === el) {
+    document.exitFullscreen?.()
+  } else {
+    el.requestFullscreen?.().catch(() => {})
+  }
+}
+
 // Phase 2 mesh WebRTC (see migrations/022_mindcord.sql comment + ROOM_CAP in
 // pages/api/mindcord/join.js): STUN only, no TURN -- an accepted gap for some
 // fraction of joins (symmetric NAT / restrictive firewalls), surfaced per-peer
@@ -165,9 +242,18 @@ function RoomView({ room, onLeave, identity }) {
   const [peers, setPeers] = useState({})
   const [micOn, setMicOn] = useState(false)
   const [camOn, setCamOn] = useState(false)
+  const [screenOn, setScreenOn] = useState(false)
   const [mediaError, setMediaError] = useState('')
+  const [uploading, setUploading] = useState(false)
   const listRef = useRef(null)
   const leftRef = useRef(false)
+  const fileInputRef = useRef(null)
+  const screenStreamRef = useRef(null)
+  // Mirrors screenOn for the long-lived postgres_changes/broadcast callbacks below --
+  // those are registered once per room join (effect deps are just [room.room_id]), so
+  // reading the `screenOn` state variable directly inside them would always see its
+  // value from that first render, not the latest toggle.
+  const screenOnRef = useRef(false)
   const myId = identity?.user_id
 
   // Mesh WebRTC bookkeeping -- refs, not state, since none of this should trigger a
@@ -354,7 +440,9 @@ function RoomView({ room, onLeave, identity }) {
         avatar_key: avatarKey || prev[peerId]?.avatar_key || '👤',
         connState: 'new',
         hasVideo: false,
-        hasAudio: false
+        hasAudio: false,
+        videoKind: null,
+        viewingScreen: false
       }
     }))
     return pc
@@ -368,6 +456,10 @@ function RoomView({ room, onLeave, identity }) {
     sendSignal('offer', peerId, { sdp: pc.localDescription })
   }
 
+  function broadcastVideoState(kind) {
+    for (const peerId of pcsRef.current.keys()) sendSignal('video-state', peerId, { videoKind: kind })
+  }
+
   // Deterministic offerer selection (higher user_id offers) rather than a strict
   // "newcomer always offers" rule -- two joins landing close enough together can each
   // see the other as "already in the room" by the time they fetch the roster, and a
@@ -378,6 +470,10 @@ function RoomView({ room, onLeave, identity }) {
     const meta = rosterRef.current.get(peerId) || {}
     ensurePeer(peerId, meta.display_name, meta.avatar_key)
     if (myId > peerId) initiateOffer(peerId)
+    // Tell a newcomer about an already-running screen share -- otherwise they'd only
+    // learn about it from the next broadcastVideoState call, which may never come if
+    // the share was started before they joined.
+    if (screenOnRef.current) sendSignal('video-state', peerId, { videoKind: 'screen' })
   }
 
   function teardownPeer(peerId) {
@@ -409,14 +505,18 @@ function RoomView({ room, onLeave, identity }) {
   function stopLocalMedia() {
     localStreamRef.current?.getTracks().forEach(t => t.stop())
     localStreamRef.current = null
+    screenStreamRef.current?.getTracks().forEach(t => t.stop())
+    screenStreamRef.current = null
     removeLocalAnalyser()
     setMicOn(false)
     setCamOn(false)
+    setScreenOn(false)
+    screenOnRef.current = false
   }
 
   async function handleSignal(payload) {
     if (!payload || payload.to !== myId) return
-    const { kind, from, sdp, candidate } = payload
+    const { kind, from, sdp, candidate, videoKind } = payload
     if (kind === 'offer') {
       const meta = rosterRef.current.get(from)
       const pc = ensurePeer(from, meta?.display_name, meta?.avatar_key)
@@ -432,6 +532,14 @@ function RoomView({ room, onLeave, identity }) {
       await flushIce(from, pc)
     } else if (kind === 'ice') {
       queueOrAddIce(from, candidate)
+    } else if (kind === 'video-state') {
+      // A peer's video track (camera or screen) rides the same transceiver either
+      // way, so the receiving end can't tell them apart from the track alone -- this
+      // is an explicit app-level announcement. Resetting viewingScreen on every
+      // announcement (not just when it flips to 'screen') means a fresh "Join
+      // stream" click is required each time a share starts, rather than silently
+      // reusing an opt-in from a previous share.
+      updatePeer(from, { videoKind: videoKind || null, viewingScreen: false })
     }
   }
 
@@ -488,8 +596,10 @@ function RoomView({ room, onLeave, identity }) {
       }
       for (const senders of sendersRef.current.values()) senders.video?.replaceTrack(null)
       setCamOn(false)
+      broadcastVideoState(null)
       return
     }
+    if (screenOn) stopScreenShare()
     try {
       const stream = await navigator.mediaDevices.getUserMedia({ video: true })
       const track = stream.getVideoTracks()[0]
@@ -498,8 +608,66 @@ function RoomView({ room, onLeave, identity }) {
       for (const senders of sendersRef.current.values()) senders.video?.replaceTrack(track)
       setMediaError('')
       setCamOn(true)
+      broadcastVideoState('camera')
     } catch {
       setMediaError('Could not access your camera, check browser permissions')
+    }
+  }
+
+  // Screen share reuses the same video sender/transceiver as the camera (see
+  // ensurePeer) rather than adding a second one -- one video slot, camera or screen,
+  // never both, so remote peers need no new signaling to render it: it just arrives
+  // as a track on the transceiver they already have, same as a camera toggle.
+  function stopScreenShare() {
+    const track = localStreamRef.current?.getVideoTracks()[0]
+    if (track && screenStreamRef.current?.getVideoTracks().includes(track)) {
+      track.stop()
+      localStreamRef.current.removeTrack(track)
+      for (const senders of sendersRef.current.values()) senders.video?.replaceTrack(null)
+    }
+    screenStreamRef.current?.getTracks().forEach(t => t.stop())
+    screenStreamRef.current = null
+    setScreenOn(false)
+    screenOnRef.current = false
+    broadcastVideoState(null)
+  }
+
+  async function toggleScreenShare() {
+    if (screenOn) {
+      stopScreenShare()
+      return
+    }
+    if (!navigator.mediaDevices?.getDisplayMedia) {
+      setMediaError('Screen sharing is not supported in this browser')
+      return
+    }
+    if (camOn) {
+      const track = localStreamRef.current?.getVideoTracks()[0]
+      if (track) {
+        track.stop()
+        localStreamRef.current.removeTrack(track)
+      }
+      setCamOn(false)
+    }
+    try {
+      const stream = await navigator.mediaDevices.getDisplayMedia({ video: true })
+      const track = stream.getVideoTracks()[0]
+      screenStreamRef.current = stream
+      if (!localStreamRef.current) localStreamRef.current = new MediaStream()
+      localStreamRef.current.addTrack(track)
+      for (const senders of sendersRef.current.values()) senders.video?.replaceTrack(track)
+      // Fires when the user stops sharing from the browser's own "Stop sharing" UI
+      // rather than our button, so state stays in sync either way.
+      track.onended = () => stopScreenShare()
+      setMediaError('')
+      setScreenOn(true)
+      screenOnRef.current = true
+      // Gated on the receiving end: peers see a "Join stream" prompt (see
+      // peer.videoKind/viewingScreen below) instead of the video auto-playing the
+      // moment sharing starts.
+      broadcastVideoState('screen')
+    } catch {
+      setMediaError('Could not start screen sharing, check browser permissions')
     }
   }
 
@@ -648,6 +816,40 @@ function RoomView({ room, onLeave, identity }) {
     }
   }
 
+  async function handleFileSelect(e) {
+    const file = e.target.files?.[0]
+    e.target.value = ''
+    if (!file) return
+    setError('')
+    if (file.size > MAX_UPLOAD_BYTES) {
+      setError('File must be under 5MB')
+      return
+    }
+    if (!ALLOWED_UPLOAD_MIME.has(file.type)) {
+      setError('That file type is not supported')
+      return
+    }
+    setUploading(true)
+    try {
+      const data = await readFileAsBase64(file)
+      const res = await fetch('/api/mindcord/upload', {
+        method: 'POST',
+        headers: { 'content-type': 'application/json' },
+        body: JSON.stringify({ room_id: room.room_id, filename: file.name, mime_type: file.type, data })
+      })
+      const result = await res.json()
+      if (!res.ok) {
+        setError(result.error || 'Could not share file')
+        return
+      }
+      setMessages(prev => ((prev || []).some(m => m.id === result.message.id) ? prev : [...(prev || []), result.message]))
+    } catch {
+      setError('Could not share file')
+    } finally {
+      setUploading(false)
+    }
+  }
+
   return (
     <section className="card flex h-full flex-col overflow-hidden">
       <div className="border-b border-ink-700 px-3.5 py-2.5">
@@ -660,15 +862,17 @@ function RoomView({ room, onLeave, identity }) {
           <div className="grid h-full auto-rows-min grid-cols-3 content-start gap-2 overflow-y-auto p-2">
             <div
               ref={selfTileRef}
-              className="relative aspect-[4/3] overflow-hidden rounded-lg border-2 border-transparent bg-ink-800"
+              onClick={e => toggleTileFullscreen(e.currentTarget)}
+              title="Click to fullscreen"
+              className="relative aspect-[4/3] cursor-pointer overflow-hidden rounded-lg border-2 border-transparent bg-ink-800"
             >
-              {camOn ? (
+              {camOn || screenOn ? (
                 <video
                   autoPlay
                   playsInline
                   muted
                   ref={el => { if (el) el.srcObject = localStreamRef.current }}
-                  className="h-full w-full object-cover"
+                  className={`h-full w-full ${screenOn ? 'object-contain bg-black' : 'object-cover'}`}
                 />
               ) : (
                 <div className="flex h-full items-center justify-center">
@@ -679,6 +883,9 @@ function RoomView({ room, onLeave, identity }) {
               <span className="absolute bottom-1 right-1 flex h-5 w-5 items-center justify-center rounded-full bg-black/60">
                 <MicIcon on={micOn} />
               </span>
+              <span className="absolute right-1 top-1 flex h-5 w-5 items-center justify-center rounded-full bg-black/60 text-mist-200">
+                <ExpandIcon />
+              </span>
             </div>
             {Object.entries(peers).map(([peerId, meta]) => {
               const connecting = meta.connState !== 'connected' && meta.connState !== 'failed'
@@ -687,19 +894,36 @@ function RoomView({ room, onLeave, identity }) {
                 : connecting
                   ? 'border-amber-400/60'
                   : 'border-transparent'
+              // A screen share stays gated behind an explicit "Join stream" click even
+              // though the track is already flowing (meta.hasVideo) -- see the
+              // video-state signal handling in handleSignal/broadcastVideoState above.
+              const awaitingJoin = meta.hasVideo && meta.videoKind === 'screen' && !meta.viewingScreen
+              const showVideo = meta.hasVideo && (meta.videoKind !== 'screen' || meta.viewingScreen)
               return (
                 <div
                   key={peerId}
                   ref={el => { if (el) tileRefs.current.set(peerId, el); else tileRefs.current.delete(peerId) }}
-                  className={`relative aspect-[4/3] overflow-hidden rounded-lg border-2 bg-ink-800 ${borderCls}`}
+                  onClick={e => toggleTileFullscreen(e.currentTarget)}
+                  title="Click to fullscreen"
+                  className={`relative aspect-[4/3] cursor-pointer overflow-hidden rounded-lg border-2 bg-ink-800 ${borderCls}`}
                 >
-                  {meta.hasVideo ? (
+                  {showVideo ? (
                     <video
                       autoPlay
                       playsInline
                       ref={el => { if (el) el.srcObject = remoteStreamsRef.current.get(peerId) || null }}
-                      className="h-full w-full object-cover"
+                      className={`h-full w-full ${meta.videoKind === 'screen' ? 'object-contain bg-black' : 'object-cover'}`}
                     />
+                  ) : awaitingJoin ? (
+                    <div className="flex h-full flex-col items-center justify-center gap-1.5 bg-ink-900 px-2 text-center">
+                      <span className="text-[11px] text-mist-300">{meta.display_name} is sharing their screen</span>
+                      <button
+                        onClick={e => { e.stopPropagation(); updatePeer(peerId, { viewingScreen: true }) }}
+                        className="rounded-full bg-orange-500 px-3 py-1 text-[11px] font-medium text-white transition hover:bg-orange-600"
+                      >
+                        Join stream
+                      </button>
+                    </div>
                   ) : (
                     <div className="flex h-full items-center justify-center">
                       <span className="flex h-9 w-9 items-center justify-center rounded-full bg-ink-700 text-lg">{meta.avatar_key || '👤'}</span>
@@ -710,6 +934,9 @@ function RoomView({ room, onLeave, identity }) {
                   </span>
                   <span className="absolute bottom-1 right-1 flex h-5 w-5 items-center justify-center rounded-full bg-black/60">
                     <MicIcon on={meta.hasAudio} />
+                  </span>
+                  <span className="absolute left-1 top-1 flex h-5 w-5 items-center justify-center rounded-full bg-black/60 text-mist-200">
+                    <ExpandIcon />
                   </span>
                   {connecting && (
                     <span className={`absolute right-1 top-1 h-1.5 w-1.5 rounded-full ${peerStatusBadge(meta.connState).dot}`} />
@@ -743,6 +970,13 @@ function RoomView({ room, onLeave, identity }) {
             >
               <MicIcon on={micOn} size={18} />
             </button>
+            <button
+              onClick={toggleScreenShare}
+              aria-label={screenOn ? 'Stop screen share' : 'Share your screen'}
+              className={`pointer-events-auto flex h-11 w-11 items-center justify-center rounded-full shadow-lg transition ${screenOn ? 'bg-orange-500 text-white hover:bg-orange-600' : 'bg-black/60 text-mist-100 hover:bg-black/70'}`}
+            >
+              <ScreenShareIcon on={screenOn} size={18} />
+            </button>
           </div>
         </div>
         <div className="flex w-56 shrink-0 flex-col overflow-hidden">
@@ -769,7 +1003,30 @@ function RoomView({ room, onLeave, identity }) {
                       <span className="text-xs font-medium text-mist-200">{m.display_name}</span>
                       <span className="text-[10px] text-mist-500">{timeAgo(m.created_at)}</span>
                     </div>
-                    <p className="text-sm leading-snug text-mist-100">{m.body}</p>
+                    {m.file_id ? (
+                      m.file_mime?.startsWith('image/') ? (
+                        <a href={`/api/mindcord/files/${m.file_id}`} target="_blank" rel="noreferrer">
+                          <img
+                            src={`/api/mindcord/files/${m.file_id}`}
+                            alt={m.file_name || 'shared photo'}
+                            className="mt-1 max-h-40 max-w-full rounded-lg object-cover"
+                          />
+                        </a>
+                      ) : (
+                        <a
+                          href={`/api/mindcord/files/${m.file_id}`}
+                          target="_blank"
+                          rel="noreferrer"
+                          className="mt-1 flex items-center gap-1.5 rounded-lg bg-ink-900 px-2 py-1.5 text-mist-100 transition hover:bg-ink-700"
+                        >
+                          <FileIcon size={15} />
+                          <span className="min-w-0 flex-1 truncate text-xs">{m.file_name}</span>
+                          <span className="shrink-0 text-[10px] text-mist-500">{formatFileSize(m.file_size)}</span>
+                        </a>
+                      )
+                    ) : (
+                      <p className="text-sm leading-snug text-mist-100">{m.body}</p>
+                    )}
                   </div>
                 </div>
               ))
@@ -777,10 +1034,26 @@ function RoomView({ room, onLeave, identity }) {
           </div>
           <form onSubmit={send} className="flex items-center gap-2 border-t border-ink-700 p-2">
             <input
+              ref={fileInputRef}
+              type="file"
+              onChange={handleFileSelect}
+              accept="image/png,image/jpeg,image/gif,image/webp,application/pdf,text/plain,text/csv,application/zip,application/msword,application/vnd.openxmlformats-officedocument.wordprocessingml.document,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
+              className="hidden"
+            />
+            <button
+              type="button"
+              onClick={() => fileInputRef.current?.click()}
+              disabled={uploading}
+              aria-label="Share a file or photo"
+              className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-ink-800 text-mist-300 transition hover:bg-ink-700 disabled:opacity-40"
+            >
+              <PaperclipIcon />
+            </button>
+            <input
               value={draft}
               onChange={e => setDraft(e.target.value)}
               maxLength={500}
-              placeholder="Say something…"
+              placeholder={uploading ? 'Sharing file…' : 'Say something…'}
               className={`flex-1 ${pillInputClass}`}
             />
             <button

@@ -18,7 +18,7 @@ async function handler(req, res) {
     if (!active.rows[0]) return res.status(403).json({ error: 'Join this room first' })
 
     const { rows } = await pool.query(
-      `SELECT id, room_id, user_id, display_name, avatar_key, body, created_at
+      `SELECT id, room_id, user_id, display_name, avatar_key, body, file_id, file_name, file_mime, file_size, created_at
        FROM mindcord_messages
        WHERE room_id = $1
        ORDER BY created_at DESC
