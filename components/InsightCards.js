@@ -232,7 +232,7 @@ export function GoalArrowChart({ goals }) {
       {activeGoal && (
         <div className="mt-4 rounded-xl border border-violet-400/30 bg-violet-500/5 p-4">
           <p className="mb-2 text-xs font-semibold uppercase tracking-wide text-violet-300">
-            Goal {String(activeNum).padStart(2, '0')}{activeGoal.metadata?.name ? ` — ${activeGoal.metadata.name}` : ''}
+            Goal {String(activeNum).padStart(2, '0')}{activeGoal.metadata?.name ? `: ${activeGoal.metadata.name}` : ''}
           </p>
           <p className="text-sm leading-relaxed text-mist-100">{activeGoal.summary}</p>
           <SourceRefs refs={activeGoal.source_refs} />
@@ -375,7 +375,7 @@ export function PathDiagram({ path }) {
               ) : (
                 <span className="text-mist-200">{active.resource.title}</span>
               )}
-              {active.resource.why_this_one ? <span className="text-mist-500"> — {active.resource.why_this_one}</span> : null}
+              {active.resource.why_this_one ? <span className="text-mist-500">, {active.resource.why_this_one}</span> : null}
             </p>
           )}
           {active.practice && <p className="mt-1 text-xs text-emerald-200/80">✎ {active.practice}</p>}

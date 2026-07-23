@@ -20,8 +20,15 @@ async function handler(req, res) {
   if (!domain) return res.status(400).json({ error: 'domain is required' })
 
   if (isRateLimited('mindcord_join', userId, 6, 30_000)) {
-    return res.status(429).json({ error: 'Slow down — wait a moment before joining again' })
+    return res.status(429).json({ error: 'Slow down, wait a moment before joining again' })
   }
+
+  // See migrations/026_mindcord_heartbeat.sql -- expire stale rows before the capacity
+  // check below, so a room someone abandoned without hitting Leave doesn't stay
+  // wrongly counted as full.
+  await pool.query(
+    `UPDATE mindcord_participants SET left_at = now() WHERE left_at IS NULL AND last_seen_at < now() - interval '45 seconds'`
+  )
 
   const identity = await pool.query('SELECT display_name, avatar_key FROM other_brains_identities WHERE user_id = $1', [userId])
   if (!identity.rows[0]) return res.status(400).json({ error: 'Set a display name in MINDVERSE first' })

@@ -114,11 +114,11 @@ export default function RoutinePlanner({ onChange }) {
           <p className="label mb-2">First run</p>
           <h3 className="mb-3 font-serif text-xl font-light text-mist-100">What do you do on a regular basis?</h3>
           <p className="mb-3 text-sm text-mist-400">
-            Tell your brain in plain words — when you sleep and wake, what your mornings look like, which days you exercise.
+            Tell your brain in plain words: when you sleep and wake, what your mornings look like, which days you exercise.
             The next mind cycle turns it into suggested routines here. Or just tap the ready-made ones below.
           </p>
           {routineAnswerSent ? (
-            <p className="text-sm text-emerald-300">Saved — your next mind cycle will turn this into suggestions.</p>
+            <p className="text-sm text-emerald-300">Saved. Your next mind cycle will turn this into suggestions.</p>
           ) : (
             <div className="flex flex-wrap gap-2">
               <textarea

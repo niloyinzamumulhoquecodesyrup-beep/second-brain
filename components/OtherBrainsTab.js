@@ -82,7 +82,7 @@ export function IdentityGate({ onCreated }) {
       <p className="label mb-1">Join anonymously</p>
       <h2 className="mb-2 font-serif text-xl font-light text-mist-100">Pick a name to use here</h2>
       <p className="mb-4 text-sm text-mist-400">
-        Not your real name or email — this is what other members will see, along with a randomly assigned avatar. You can't change it later.
+        Not your real name or email. This is what other members will see, along with a randomly assigned avatar. You can't change it later.
       </p>
       <form onSubmit={submit} className="flex flex-wrap items-center gap-3">
         <input
@@ -186,7 +186,7 @@ function ChatPanel() {
         {messages === null ? (
           <p className="text-sm text-mist-400">Loading…</p>
         ) : messages.length === 0 ? (
-          <p className="text-sm text-mist-400">Nobody's said anything yet — be the first.</p>
+          <p className="text-sm text-mist-400">Nobody's said anything yet, be the first.</p>
         ) : (
           messages.map(m => (
             <div key={m.id} className="flex items-end gap-2">

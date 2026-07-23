@@ -1,11 +1,11 @@
 import { useState } from 'react'
 
 const PARA_OPTIONS = [
-  { value: 'inbox', label: 'Inbox — sort it later (recommended)' },
-  { value: 'project', label: 'Project — short-term, has a deadline' },
-  { value: 'area', label: 'Area — ongoing, no end date' },
-  { value: 'resource', label: 'Resource — interest to explore' },
-  { value: 'archive', label: 'Archive — no longer a priority' }
+  { value: 'inbox', label: 'Inbox, sort it later (recommended)' },
+  { value: 'project', label: 'Project, short-term, has a deadline' },
+  { value: 'area', label: 'Area, ongoing, no end date' },
+  { value: 'resource', label: 'Resource, interest to explore' },
+  { value: 'archive', label: 'Archive, no longer a priority' }
 ]
 
 export default function CaptureSection({ onSaved }) {

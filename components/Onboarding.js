@@ -74,7 +74,7 @@ function ImportSlot({ slot, onChange, onRemove, canRemove }) {
           onClick={() => setExpanded(true)}
           className="flex w-full items-center justify-between rounded-lg border border-ink-700 bg-ink-950/60 px-3 py-2.5 text-left text-sm text-mist-200 hover:border-emerald-400/40"
         >
-          <span>📄 Pasted — {slot.text.length.toLocaleString()} characters</span>
+          <span>📄 Pasted, {slot.text.length.toLocaleString()} characters</span>
           <span className="text-xs text-mist-500">Edit</span>
         </button>
       ) : (
@@ -166,7 +166,7 @@ export default function Onboarding({ onComplete }) {
         {step === 'hello' && (
           <>
             <h1 className="font-serif text-4xl font-light text-mist-100 [text-shadow:0_2px_30px_rgba(0,0,0,0.8)]">Hello.</h1>
-            <p className="mt-3 text-sm text-mist-400">Press start, and let's set up a system that actually helps you follow through — no pressure, nothing to keep up with.</p>
+            <p className="mt-3 text-sm text-mist-400">Press start, and let's set up a system that actually helps you follow through. No pressure, nothing to keep up with.</p>
             <button onClick={start} className="btn-primary mt-8 !px-8 !py-3 text-base">Start</button>
           </>
         )}
@@ -211,7 +211,7 @@ export default function Onboarding({ onComplete }) {
         {step === 'persona' && (
           <>
             <p className="mb-1 text-sm text-mist-400">Hey, it's empty in here.</p>
-            <p className="mb-4 text-sm text-mist-400">Let's start by knowing you — what best describes you?</p>
+            <p className="mb-4 text-sm text-mist-400">Let's start by knowing you, what best describes you?</p>
             <select className="input text-center" value={persona} onChange={e => setPersona(e.target.value)}>
               <option value="" disabled>Choose one…</option>
               {PERSONA_OPTIONS.map(p => (
@@ -237,7 +237,7 @@ export default function Onboarding({ onComplete }) {
           <div className="w-full max-w-lg text-left">
             <p className="mb-1 text-center text-sm text-mist-400">Last step.</p>
             <p className="mb-5 text-center text-sm text-mist-400">
-              Paste up to 5 things that already hold your knowledge elsewhere — old AI chats, documents, a kanban board, journal entries, calendar exports. I'll go through all of it on the next refresh cycle.
+              Paste up to 5 things that already hold your knowledge elsewhere: old AI chats, documents, a kanban board, journal entries, calendar exports. I'll go through all of it on the next refresh cycle.
             </p>
 
             <div className="max-h-[40vh] space-y-3 overflow-y-auto pr-1">

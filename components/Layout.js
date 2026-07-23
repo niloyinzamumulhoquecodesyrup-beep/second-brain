@@ -15,10 +15,10 @@ const NAV_ITEMS = [
 // Sample copy for the bell's "preview a reminder" demo — the Reminders & Alerts
 // plan's exact gentle framing ("When you're ready: …"), not real reminder data.
 const DEMO_REMINDERS = [
-  { message: "Reply to Sam about the proposal — whenever you get a moment.", href: '/work' },
+  { message: "Reply to Sam about the proposal, whenever you get a moment.", href: '/work' },
   { message: 'A quick one: water the plants before it slips your mind.', href: '/work' },
   { message: 'Your morning pages routine is coming up.', href: '/work' },
-  { message: "That task you split into pieces yesterday — the first piece is still there, waiting.", href: '/work' }
+  { message: "That task you split into pieces yesterday: the first piece is still there, waiting.", href: '/work' }
 ]
 
 export default function Layout({ children, user }) {

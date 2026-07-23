@@ -217,6 +217,13 @@
   .chip {
     @apply inline-flex items-center rounded-full border border-ink-500 px-2.5 py-0.5 text-xs text-mist-300;
   }
+
+  /* Mindcord call tile: toggled imperatively via classList from a Web Audio analyser
+     loop (components/MindcordSection.js), not React state -- it changes at animation-
+     frame rate, so a Tailwind className would mean a re-render per frame. */
+  .mindcord-speaking {
+    box-shadow: 0 0 0 2px rgba(52, 211, 153, 0.85), 0 0 18px 3px rgba(52, 211, 153, 0.5);
+  }
 }
 
 @layer utilities {

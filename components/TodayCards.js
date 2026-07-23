@@ -157,7 +157,7 @@ export default function TodayCards({ tasks, onToggle: onToggleTask, onDelete: on
       const overdue = due && due < today && !t.done
       const subtitle = t.start_min != null
         ? (t.duration_min ? `${fmtTime(t.start_min)} – ${fmtTime(t.start_min + t.duration_min)}` : fmtTime(t.start_min))
-        : (due ? (overdue ? `overdue — ${fmtDue(due)}` : fmtDue(due)) : 'No due date')
+        : (due ? (overdue ? `overdue: ${fmtDue(due)}` : fmtDue(due)) : 'No due date')
       return {
         key: `task-${t.id}`,
         kind: 'task',

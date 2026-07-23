@@ -341,7 +341,7 @@ export default function MindMap() {
     return (
       <div className="card p-6">
         <p className="label mb-2 !text-emerald-300">Mind map</p>
-        <p className="text-sm text-mist-400">Capture a few notes and this fills in — a note's connections come from links you type and ones the AI notices in the embeddings.</p>
+        <p className="text-sm text-mist-400">Capture a few notes and this fills in. A note's connections come from links you type and ones the AI notices in the embeddings.</p>
       </div>
     )
   }

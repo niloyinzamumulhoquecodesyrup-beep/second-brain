@@ -13,6 +13,13 @@ async function handler(req, res) {
   if (!hasDb()) return res.status(500).json({ error: 'Database not configured' })
   const pool = getPool()
 
+  // See migrations/026_mindcord_heartbeat.sql -- a tab closed without hitting Leave
+  // never calls /leave, so left_at would otherwise never get set. Expire anyone whose
+  // heartbeat has gone silent before answering, so they stop showing as "joined".
+  await pool.query(
+    `UPDATE mindcord_participants SET left_at = now() WHERE left_at IS NULL AND last_seen_at < now() - interval '45 seconds'`
+  )
+
   const [{ rows: domains }, { rows: rooms }] = await Promise.all([
     pool.query(
       `SELECT domain, COUNT(DISTINCT user_id)::int AS brains

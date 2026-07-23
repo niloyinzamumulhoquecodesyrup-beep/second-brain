@@ -23,7 +23,7 @@ async function handler(req, res) {
       return res.status(400).json({ error: 'Message must be 1-500 characters' })
     }
     if (isRateLimited('obrains_msg', userId, 10, 30_000)) {
-      return res.status(429).json({ error: 'Slow down — wait a moment before sending another' })
+      return res.status(429).json({ error: 'Slow down, wait a moment before sending another' })
     }
 
     const identity = await pool.query('SELECT 1 FROM other_brains_identities WHERE user_id = $1', [userId])

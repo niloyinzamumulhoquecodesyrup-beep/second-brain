@@ -215,7 +215,7 @@ export default function FocusPomodoro({ item, bgColorClass, textColorClass, piec
         </div>
 
         <button disabled={finishing} onClick={finish} className={`mt-6 w-full rounded-xl py-3 text-sm font-semibold text-white ${bgColorClass} hover:brightness-110 disabled:opacity-60`}>
-          ✓ Done — mark task complete
+          ✓ Done, mark task complete
         </button>
       </div>
     </div>

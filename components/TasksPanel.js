@@ -203,7 +203,7 @@ export default function TasksPanel({ onCompletion }) {
 
   return (
     <div className="space-y-8">
-      <TodayCards tasks={todayTasks} onToggle={toggleTask} onDelete={deleteTask} onUpdate={updateTask} onCompletion={onCompletion} empty="Nothing due today — add the next small step above." />
+      <TodayCards tasks={todayTasks} onToggle={toggleTask} onDelete={deleteTask} onUpdate={updateTask} onCompletion={onCompletion} empty="Nothing due today, add the next small step above." />
 
       <div className="card border-t-2 border-emerald-400/30 p-5">
         <p className="label mb-3 !text-emerald-300">Add a task</p>

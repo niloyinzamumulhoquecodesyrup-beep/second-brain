@@ -9,21 +9,21 @@ const QUOTES = [
   'One task, right now. The rest can wait its turn.',
   'You don\'t need to feel ready. You just need to begin.',
   'A messy start still counts as a start.',
-  'Your brain isn\'t broken — it just runs on different fuel. Feed it a win.',
+  'Your brain isn\'t broken, it just runs on different fuel. Feed it a win.',
   'Done beats perfect, every single time.',
   'Five focused minutes is still five minutes you didn\'t have yesterday.',
   'Progress hides in the boring middle. Keep going.',
   'You showed up. That\'s the hard part, and it\'s already behind you.',
   'Small and consistent outlasts big and occasional.',
-  'The next step doesn\'t have to be the right one — just a real one.',
+  'The next step doesn\'t have to be the right one, just a real one.',
   'Distraction is loud, but it isn\'t in charge.',
   'You\'re not behind. You\'re exactly where today needed you to start.',
-  'Willpower is a muscle, not a personality trait — this rep counts.',
+  'Willpower is a muscle, not a personality trait, this rep counts.',
   'Nobody remembers the slow start. They remember the finish.',
   'Rest is not the opposite of progress.',
   'One box checked is proof, not just paperwork.',
   'Today doesn\'t need to fix every day before it.',
-  'Your attention is a resource — spend a little of it here, on purpose.'
+  'Your attention is a resource, spend a little of it here, on purpose.'
 ]
 
 function todayYMD() {

@@ -21,7 +21,10 @@ const nextConfig = {
           { key: 'X-Frame-Options', value: 'DENY' },
           { key: 'X-Content-Type-Options', value: 'nosniff' },
           { key: 'Referrer-Policy', value: 'strict-origin-when-cross-origin' },
-          { key: 'Permissions-Policy', value: 'camera=(), microphone=(), geolocation=()' }
+          // camera/microphone opened to same-origin only (Mindcord Phase 2 WebRTC calling
+          // needs getUserMedia; this app never embeds itself cross-origin, so self-only
+          // is the minimum permissive change).
+          { key: 'Permissions-Policy', value: 'camera=(self), microphone=(self), geolocation=()' }
         ]
       }
     ]

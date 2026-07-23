@@ -18,7 +18,7 @@ function todayYMD() {
 // not this "didn't see that coming" surprise.
 const SURPRISE_LINES = [
   "Didn't see that coming, did you? Bonus round.",
-  'Extra credit — you weren\'t even trying for this one.',
+  'Extra credit, you weren\'t even trying for this one.',
   'A little gift from future-you to present-you.',
   'Surprise! The universe noticed.',
   'Unlocked out of nowhere. Enjoy it.',
@@ -64,7 +64,7 @@ export default function Work({ user }) {
     })
 
     if (nextLevel > prevLevel) {
-      setBonus({ message: `Level up — ${dimLabel} Lv ${nextLevel}!` })
+      setBonus({ message: `Level up: ${dimLabel} Lv ${nextLevel}!` })
     } else if (Math.random() < 0.15) {
       setBonus({ message: SURPRISE_LINES[Math.floor(Math.random() * SURPRISE_LINES.length)] })
     }

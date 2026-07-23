@@ -90,22 +90,22 @@ function WorkDemo() {
 const STEP_CONTENT = {
   welcome: {
     title: 'A quick look at how this works',
-    body: "Here's a short walkthrough with sample data — your workspace first, then Capture, Organize, Distill, Express, and what it all builds toward. No pressure, and you can skip ahead any time.",
+    body: "Here's a short walkthrough with sample data: your workspace first, then Capture, Organize, Distill, Express, and what it all builds toward. No pressure, and you can skip ahead any time.",
     cta: 'Next: Your workspace'
   },
   work: {
     title: 'Your workspace',
-    body: "This is where the actual doing happens — today's tasks, a focus timer for whenever you want one, and a few gentle signals that you're making progress. No countdowns, nothing that turns red if you miss a day.",
+    body: "This is where the actual doing happens: today's tasks, a focus timer for whenever you want one, and a few gentle signals that you're making progress. No countdowns, nothing that turns red if you miss a day.",
     demo: <WorkDemo />,
     cta: 'Next: Capture'
   },
   capture: {
     title: 'Capture',
-    body: 'Everything starts as a quick capture — no deciding where it goes yet, just getting it down.',
+    body: 'Everything starts as a quick capture, no deciding where it goes yet, just getting it down.',
     demo: (
       <div className="space-y-3">
         <TypingField label="Title" value="Ideas on prompt engineering" delay={200} />
-        <TypingField label="Content" value="Started experimenting with few-shot prompts today — 2-3 diverse examples beats a long instruction." multiline delay={900} />
+        <TypingField label="Content" value="Started experimenting with few-shot prompts today: 2-3 diverse examples beats a long instruction." multiline delay={900} />
         <TypingField label="Tags" value="ai, prompting" delay={2600} />
       </div>
     ),
@@ -113,7 +113,7 @@ const STEP_CONTENT = {
   },
   organize: {
     title: 'Organize',
-    body: 'Sorted by use, not subject (the PARA method) — a five-minute weekly pass moves things from Inbox into Projects, Areas, Resources, or Archive.',
+    body: 'Sorted by use, not subject (the PARA method). A five-minute weekly pass moves things from Inbox into Projects, Areas, Resources, or Archive.',
     demo: (
       <div className="flex flex-wrap items-center gap-3">
         <span className="chip border-rose-400/40 text-rose-300">Inbox</span>
@@ -142,7 +142,7 @@ const STEP_CONTENT = {
   },
   express: {
     title: 'Express',
-    body: 'Turn a distilled note into something real — a task to act on, or a packet to reuse and share.',
+    body: 'Turn a distilled note into something real: a task to act on, or a packet to reuse and share.',
     demo: (
       <div className="space-y-3">
         <TypingField label="New task" value="Draft a prompt-engineering cheatsheet" delay={300} />
@@ -153,7 +153,7 @@ const STEP_CONTENT = {
   },
   summary: {
     title: 'That becomes your Mind Model',
-    body: 'Every capture, sort, distillation, and task feeds a picture of your interests and how you work — this is sample data, not yours yet.',
+    body: 'Every capture, sort, distillation, and task feeds a picture of your interests and how you work. This is sample data, not yours yet.',
     demo: (
       <div className="grid gap-3 sm:grid-cols-2">
         <div className="rounded-lg border border-ink-700 bg-ink-900/60 p-4">
@@ -161,9 +161,9 @@ const STEP_CONTENT = {
           <div className="flex items-center gap-3">
             <div className="flex h-16 w-16 items-center justify-center rounded-full border-4 border-emerald-400/60 text-sm text-mist-100">3</div>
             <ul className="space-y-1 text-xs text-mist-300">
-              <li>Projects — 1 note</li>
-              <li>Resources — 1 note</li>
-              <li>Inbox — 1 note</li>
+              <li>Projects: 1 note</li>
+              <li>Resources: 1 note</li>
+              <li>Inbox: 1 note</li>
             </ul>
           </div>
         </div>

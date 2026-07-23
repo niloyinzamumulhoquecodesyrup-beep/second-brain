@@ -109,7 +109,7 @@ function TimePie({ slices, totalMin, title }) {
           ))}
         </ul>
       </div>
-      <p className="mt-3 text-xs text-mist-400">{fmtHours(totalMin)} total — pick another day to redraw</p>
+      <p className="mt-3 text-xs text-mist-400">{fmtHours(totalMin)} total, pick another day to redraw</p>
     </div>
   )
 }
@@ -127,7 +127,7 @@ const DEFAULT_SUN = { sunrise: 6 * 60, sunset: 18 * 60 + 30, real: false }
 // real cause (and offering a retry) beats one flat dead-end message for all of them.
 const GEO_ERROR_MESSAGES = {
   unsupported: "this browser doesn't support location.",
-  1: 'location is blocked for this site — allow it in your browser\'s site settings, then retry.',
+  1: 'location is blocked for this site. Allow it in your browser\'s site settings, then retry.',
   2: "your device couldn't determine a location just now.",
   3: 'location request timed out.',
   weather: "reached your location, but the weather lookup failed."
@@ -437,7 +437,7 @@ function DayGantt({ date, entries, nowMin, selectedId, onSelect, onCommit, onDra
 
         {entries.length === 0 && (
           <p className="relative z-10 px-4 py-6 text-sm text-mist-400">
-            Nothing planned for {fmtDayTitle(date)} yet — add a routine below, or sketch a block on the lane underneath.
+            Nothing planned for {fmtDayTitle(date)} yet. Add a routine below, or sketch a block on the lane underneath.
           </p>
         )}
 
@@ -718,7 +718,7 @@ export default function ProductivityTab() {
       {(suggestedBlocks.length > 0 || routineSuggestions.length > 0) && (
         <section>
           <h2 className="mb-1 font-serif text-2xl font-light text-mist-100">Suggested for you</h2>
-          <p className="mb-3 text-sm text-mist-400">Pulled from your notes, tasks, and packets — nothing here is on your plan until you add it.</p>
+          <p className="mb-3 text-sm text-mist-400">Pulled from your notes, tasks, and packets. Nothing here is on your plan until you add it.</p>
           <div className="space-y-2">
             {suggestedBlocks.map(b => (
               <div key={b.id} className="flex flex-wrap items-center gap-3 rounded-xl border border-violet-400/30 bg-ink-900 px-4 py-2.5 text-sm">
@@ -846,7 +846,7 @@ export default function ProductivityTab() {
                       </>
                     )}
                     {selectedEntry.virtual && (
-                      <span className="text-[11px] text-mist-400">from your routine — edit it in the routine planner below</span>
+                      <span className="text-[11px] text-mist-400">from your routine, edit it in the routine planner below</span>
                     )}
                   </>
                 )}
@@ -873,7 +873,7 @@ export default function ProductivityTab() {
             )}
 
             <p className="mt-2 text-[11px] text-mist-400">
-              drag a bar to move it · pull the round handles to resize · tap for done / skip / rename · dashed bars are cycle suggestions — inert until you add them
+              drag a bar to move it · pull the round handles to resize · tap for done / skip / rename · dashed bars are cycle suggestions, inert until you add them
             </p>
           </div>
 
@@ -904,7 +904,7 @@ export default function ProductivityTab() {
             <div className="relative">
               <div className="pointer-events-none absolute inset-y-0 left-36 right-0" style={{ background: 'repeating-linear-gradient(to right, #181c20 0 1px, transparent 1px calc(100% / 7))' }} />
               {routines.filter(r => r.active).length === 0 && (
-                <p className="px-4 py-5 text-sm text-mist-400">No routines yet — build your skeleton in the routine planner below.</p>
+                <p className="px-4 py-5 text-sm text-mist-400">No routines yet. Build your skeleton in the routine planner below.</p>
               )}
               {routines.filter(r => r.active).map(r => (
                 <div key={r.id} className="flex items-center">

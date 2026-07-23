@@ -20,5 +20,5 @@ export default function MindcordTab() {
     return <IdentityGate onCreated={setIdentity} />
   }
 
-  return <MindcordSection />
+  return <MindcordSection identity={identity} />
 }
