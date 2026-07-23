@@ -8,12 +8,14 @@ import { PARA_THEME } from '../lib/paraTheme'
 // popover reachable from wherever a note shows up (cube face or the Inbox strip).
 const MOVE_TARGETS = ['project', 'area', 'resource', 'archive']
 
-export default function NoteActionModal({ note, onClose, onMoved }) {
+export default function NoteActionModal({ note, onClose, onMoved, onGraduated }) {
   const [mode, setMode] = useState('view') // 'view' | 'distill'
   const [summary, setSummary] = useState(note.executive_summary || '')
   const [saving, setSaving] = useState(false)
   const [distilled, setDistilled] = useState(note.distilled)
   const [moving, setMoving] = useState(false)
+  const [graduated, setGraduated] = useState(note.graduated)
+  const [graduating, setGraduating] = useState(false)
   const [taskTitle, setTaskTitle] = useState(note.title)
   const [addingTask, setAddingTask] = useState(false)
   const [addedTasks, setAddedTasks] = useState([])
@@ -38,6 +40,20 @@ export default function NoteActionModal({ note, onClose, onMoved }) {
     })
     setSaving(false)
     if (res.ok) setDistilled(true)
+  }
+
+  async function graduate() {
+    setGraduating(true)
+    const res = await fetch('/api/notes/' + note.id, {
+      method: 'PUT',
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({ graduated: true })
+    })
+    setGraduating(false)
+    if (res.ok) {
+      setGraduated(true)
+      onGraduated?.(note.id)
+    }
   }
 
   async function moveTo(para) {
@@ -100,10 +116,18 @@ export default function NoteActionModal({ note, onClose, onMoved }) {
         {mode === 'view' ? (
           <>
             <p className="mt-4 whitespace-pre-wrap text-sm leading-relaxed text-mist-200">{preview}</p>
-            {distilled && <p className="mt-2 text-[11px] uppercase tracking-wide text-gold-400">Distilled</p>}
+            <div className="mt-2 flex items-center gap-3">
+              {distilled && <p className="text-[11px] uppercase tracking-wide text-gold-400">Distilled</p>}
+              {graduated && <p className="text-[11px] uppercase tracking-wide text-emerald-300">Graduated</p>}
+            </div>
 
             <div className="mt-6 flex flex-wrap items-center gap-2 border-t border-ink-700 pt-4">
               <button onClick={() => setMode('distill')} className="btn-gold !py-1.5 text-sm">Distill</button>
+              {distilled && !graduated && (
+                <button onClick={graduate} disabled={graduating} className="chip !py-1.5 hover:border-emerald-400/60 hover:text-emerald-300">
+                  {graduating ? 'Graduating…' : '🎓 Graduate'}
+                </button>
+              )}
               <span className="text-xs text-mist-500">Move to</span>
               {moveOptions.map(p => (
                 <button key={p} disabled={moving} onClick={() => moveTo(p)} className={PARA_THEME[p].hoverMoveBtn}>

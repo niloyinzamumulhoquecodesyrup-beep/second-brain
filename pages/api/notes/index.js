@@ -9,7 +9,7 @@ async function handler(req, res) {
   const userId = req.user.id
 
   if (req.method === 'GET') {
-    const { para, tag, q, status } = req.query
+    const { para, tag, q, status, graduated } = req.query
     const clauses = ['user_id = $1']
     const params = [userId]
 
@@ -20,6 +20,10 @@ async function handler(req, res) {
     if (status) {
       params.push(status)
       clauses.push(`status = $${params.length}`)
+    }
+    if (graduated !== undefined) {
+      params.push(graduated === 'true')
+      clauses.push(`graduated = $${params.length}`)
     }
     if (tag) {
       params.push(tag)
@@ -34,7 +38,7 @@ async function handler(req, res) {
       // §4h: embedding is a 384-float vector, excluded here so the notes list response
       // (read on every Organize/Capture/Distill page load) doesn't carry it unused.
       const { rows } = await pool.query(
-        `SELECT id, user_id, title, content, para, status, tags, source_url, executive_summary, distilled, pinned, embedded_at, created_at, updated_at
+        `SELECT id, user_id, title, content, para, status, tags, source_url, executive_summary, distilled, pinned, graduated, graduated_at, embedded_at, created_at, updated_at
          FROM notes WHERE ${clauses.join(' AND ')} ORDER BY pinned DESC, created_at DESC`,
         params
       )

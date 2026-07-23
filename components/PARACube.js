@@ -14,9 +14,9 @@ function iconFor(id) {
 }
 
 const FACES = [
-  { key: 'project', heading: 'Jump into a project', name: 'Projects', theme: PARA_THEME.project, glow: 'rgba(52,211,153,0.45)', empty: "No active projects yet — mark a note as a Project in Organize and it'll show up here." },
-  { key: 'area', heading: 'Jump into an area', name: 'Areas', theme: PARA_THEME.area, glow: 'rgba(167,139,250,0.45)', empty: "No areas yet — mark a note as an Area in Organize." },
-  { key: 'resource', heading: 'Jump into a resource', name: 'Resources', theme: PARA_THEME.resource, glow: 'rgba(250,204,21,0.4)', empty: "No resources yet — mark a note as a Resource in Organize." },
+  { key: 'project', heading: 'Jump into a project', name: 'Projects', theme: PARA_THEME.project, glow: 'rgba(52,211,153,0.45)', empty: "No active projects yet. Mark a note as a Project in Organize and it'll show up here." },
+  { key: 'area', heading: 'Jump into an area', name: 'Areas', theme: PARA_THEME.area, glow: 'rgba(167,139,250,0.45)', empty: "No areas yet. Mark a note as an Area in Organize." },
+  { key: 'resource', heading: 'Jump into a resource', name: 'Resources', theme: PARA_THEME.resource, glow: 'rgba(250,204,21,0.4)', empty: "No resources yet. Mark a note as a Resource in Organize." },
   { key: 'archive', heading: 'Jump into the archive', name: 'Archives', theme: PARA_THEME.archive, glow: 'rgba(148,163,184,0.35)', empty: 'Nothing archived yet.' }
 ]
 
@@ -60,7 +60,7 @@ function Face({ face, notes, onOpen }) {
   )
 }
 
-export default function PARACube({ tag }) {
+export default function PARACube({ tag, onGraduated }) {
   const [notesByPara, setNotesByPara] = useState(null)
   const [openNote, setOpenNote] = useState(null)
   const [activeIndex, setActiveIndex] = useState(0)
@@ -80,6 +80,7 @@ export default function PARACube({ tag }) {
       .then(notes => {
         const grouped = { project: [], area: [], resource: [], archive: [] }
         notes.forEach(n => {
+          if (n.graduated) return
           if (n.para === 'project' && n.status && n.status !== 'active') return
           if (grouped[n.para]) grouped[n.para].push(n)
         })
@@ -162,6 +163,11 @@ export default function PARACube({ tag }) {
       for (const key of Object.keys(prev)) next[key] = prev[key].filter(n => n.id !== noteId)
       return next
     })
+  }
+
+  function handleGraduated(noteId) {
+    handleMoved(noteId)
+    onGraduated?.(noteId)
   }
 
   const totalDeg = -(activeIndex * 90) + dragDeg
@@ -248,7 +254,7 @@ export default function PARACube({ tag }) {
       </div>
 
       {openNote && (
-        <NoteActionModal note={openNote} onClose={() => setOpenNote(null)} onMoved={handleMoved} />
+        <NoteActionModal note={openNote} onClose={() => setOpenNote(null)} onMoved={handleMoved} onGraduated={handleGraduated} />
       )}
     </div>
   )

@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react'
 import { useRouter } from 'next/router'
 import Layout from '../components/Layout'
 import PARACube from '../components/PARACube'
+import GraduatedSection from '../components/GraduatedSection'
 import MindMap from '../components/MindMap'
 import TourOverlay from '../components/TourOverlay'
 import CaptureModal from '../components/CaptureModal'
@@ -65,6 +66,7 @@ export default function Organize({ user }) {
   const router = useRouter()
   const [insights, setInsights] = useState(null)
   const [capturing, setCapturing] = useState(false)
+  const [graduatedRefresh, setGraduatedRefresh] = useState(0)
   const tag = typeof router.query.tag === 'string' ? router.query.tag : ''
 
   useEffect(() => {
@@ -100,7 +102,11 @@ export default function Organize({ user }) {
         </div>
       </div>
 
-      <PARACube tag={tag} />
+      <PARACube tag={tag} onGraduated={() => setGraduatedRefresh(k => k + 1)} />
+
+      <div className="mt-6">
+        <GraduatedSection refreshKey={graduatedRefresh} />
+      </div>
 
       <div className="mt-6">
         <MindMap />

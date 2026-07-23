@@ -12,14 +12,14 @@ async function handler(req, res) {
   // §4h: embedding is a 384-float vector — excluded from every client-facing note
   // query below (this file and pages/api/notes/index.js) so it never bloats a
   // response the frontend has no use for. embedded_at is tiny and harmless to keep.
-  const NOTE_COLUMNS = 'id, user_id, title, content, para, status, tags, source_url, executive_summary, distilled, pinned, embedded_at, created_at, updated_at'
+  const NOTE_COLUMNS = 'id, user_id, title, content, para, status, tags, source_url, executive_summary, distilled, pinned, graduated, graduated_at, embedded_at, created_at, updated_at'
 
   if (req.method === 'GET') {
     const { rows } = await pool.query(`SELECT ${NOTE_COLUMNS} FROM notes WHERE id=$1 AND user_id=$2`, [id, userId])
     if (!rows[0]) return res.status(404).json({ error: 'Not found' })
     return res.status(200).json(rows[0])
   } else if (req.method === 'PUT') {
-    const { title, content, para, executive_summary, distilled, status, tags, pinned, source_url } = req.body || {}
+    const { title, content, para, executive_summary, distilled, status, tags, pinned, source_url, graduated } = req.body || {}
     const { rows } = await pool.query(
       `UPDATE notes SET
         title = COALESCE($1,title),
@@ -31,13 +31,19 @@ async function handler(req, res) {
         tags = COALESCE($7,tags),
         pinned = COALESCE($8,pinned),
         source_url = COALESCE($9,source_url),
+        graduated = COALESCE($10,graduated),
+        graduated_at = CASE
+          WHEN $10::boolean IS NULL THEN graduated_at
+          WHEN $10::boolean THEN now()
+          ELSE NULL
+        END,
         updated_at = now()
-       WHERE id = $10 AND user_id = $11 RETURNING ${NOTE_COLUMNS}`,
-      [title, content, para, executive_summary, distilled, status, tags, pinned, source_url, id, userId]
+       WHERE id = $11 AND user_id = $12 RETURNING ${NOTE_COLUMNS}`,
+      [title, content, para, executive_summary, distilled, status, tags, pinned, source_url, graduated, id, userId]
     )
     if (!rows[0]) return res.status(404).json({ error: 'Not found' })
     if (content !== undefined) await syncNoteLinks(pool, userId, id, rows[0].content)
-    const changedFields = Object.entries({ title, content, para, executive_summary, distilled, status, tags, pinned, source_url })
+    const changedFields = Object.entries({ title, content, para, executive_summary, distilled, status, tags, pinned, source_url, graduated })
       .filter(([, v]) => v !== undefined)
       .map(([k]) => k)
     await logActivity(pool, userId, 'note_edited', id, { fields: changedFields })
