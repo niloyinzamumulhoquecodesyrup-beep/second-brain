@@ -162,8 +162,6 @@ function DimensionColumn({ label, value, target, color, level, progress }) {
 }
 
 export default function RewardPanel({ stats }) {
-  const [quoteOffset, setQuoteOffset] = useState(0)
-
   const { streak, todayNotes, todayFocus, todayTasks, earned, next } = useMemo(() => {
     if (!stats) return { streak: 0, todayNotes: 0, todayFocus: 0, todayTasks: 0, earned: [], next: null }
     const today = todayYMD()
@@ -192,7 +190,7 @@ export default function RewardPanel({ stats }) {
     }
   }, [stats])
 
-  const quote = QUOTES[(dayOfYear() + quoteOffset) % QUOTES.length]
+  const quote = QUOTES[dayOfYear() % QUOTES.length]
 
   // Four fixed dimensions (Consistency/Capture/Follow-through/Focus). Today's
   // gauge target adapts to what's actually typical — the median of the last 7
@@ -235,14 +233,7 @@ export default function RewardPanel({ stats }) {
           )}
 
           <div className="mt-4 flex items-start gap-3 rounded-xl border border-ink-700 bg-ink-950/60 p-4">
-            <span className="mt-0.5 text-lg leading-none">💬</span>
             <p className="flex-1 text-sm italic leading-relaxed text-mist-200">{quote}</p>
-            <button
-              onClick={() => setQuoteOffset(o => o + 1)}
-              className="shrink-0 text-xs text-mist-500 underline decoration-dotted underline-offset-2 hover:text-mist-300"
-            >
-              new quote
-            </button>
           </div>
         </div>
 

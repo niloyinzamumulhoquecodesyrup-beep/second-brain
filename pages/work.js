@@ -76,7 +76,6 @@ export default function Work({ user }) {
 
       <div className="mb-8">
         <p className="label mb-2 !text-gold-400">Work</p>
-        <h1 className="font-serif text-4xl font-light text-mist-100">What's on today</h1>
       </div>
 
       <div className="space-y-6">

@@ -22,7 +22,7 @@ export default function Login() {
         body: JSON.stringify({ email, password })
       })
       if (res.ok) {
-        router.push('/')
+        router.push('/work')
       } else {
         const data = await res.json().catch(() => ({}))
         setError(data.error || 'Login failed')
@@ -93,7 +93,7 @@ export default function Login() {
 export async function getServerSideProps(context) {
   const session = getSessionFromReq(context.req)
   if (session) {
-    return { redirect: { destination: '/', permanent: false } }
+    return { redirect: { destination: '/work', permanent: false } }
   }
   return { props: {} }
 }
