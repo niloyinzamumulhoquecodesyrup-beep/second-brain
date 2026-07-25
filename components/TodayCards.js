@@ -340,12 +340,23 @@ export default function TodayCards({ tasks, onToggle: onToggleTask, onDelete: on
     onCompletion?.('focus')
   }
 
-  function reportFocusState(active, endsAt) {
+  function reportFocusState(item, active, endsAt) {
     fetch('/api/activity/focus-state', {
       method: 'POST',
       headers: { 'content-type': 'application/json' },
       body: JSON.stringify({ active, ends_at: endsAt })
     }).catch(() => {})
+
+    if (active) {
+      const minutes = Math.max(1, Math.round((new Date(endsAt) - Date.now()) / 60000))
+      fetch('/api/focus/state', {
+        method: 'POST',
+        headers: { 'content-type': 'application/json' },
+        body: JSON.stringify({ minutes, task_id: item?.kind === 'task' ? item.raw.id : null, mode: 'focus' })
+      }).catch(() => {})
+    } else {
+      fetch('/api/focus/state', { method: 'DELETE' }).catch(() => {})
+    }
   }
 
   async function persistTime(item, start_min, duration_min) {
@@ -450,7 +461,7 @@ export default function TodayCards({ tasks, onToggle: onToggleTask, onDelete: on
             onExit={requestExitFocus}
             onComplete={async () => { await completeFocusItem(liveFocusItem); requestExitFocus() }}
             onLogFocus={minutes => logFocusMinutes(liveFocusItem, minutes)}
-            onFocusStateChange={reportFocusState}
+            onFocusStateChange={(active, endsAt) => reportFocusState(liveFocusItem, active, endsAt)}
           />
         ) : null}
       </div>
