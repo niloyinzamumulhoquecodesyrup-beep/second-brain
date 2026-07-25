@@ -128,6 +128,12 @@ export default function TodayCards({ tasks, onToggle: onToggleTask, onDelete: on
   const [focusStage, setFocusStage] = useState('list') // 'list' | 'toFocus' | 'focus' | 'toList'
   const [routinePieces, setRoutinePieces] = useState({})
   const [celebrating, setCelebrating] = useState(false)
+  // Set only while mirroring a session this device didn't start itself (see the
+  // poll effect below) — { sessionId, secondsLeft } | null. Distinguishes "I
+  // started this" from "I'm watching this," since only the owning device should
+  // ever POST/DELETE /api/focus/state for it.
+  const [remoteAdoptedSession, setRemoteAdoptedSession] = useState(null)
+  const activeSessionIdRef = useRef(null) // focus_sessions.id for a session this device itself started
 
   const today = toYMD(new Date())
 
@@ -192,6 +198,56 @@ export default function TodayCards({ tasks, onToggle: onToggleTask, onDelete: on
     }
     restoreAttemptedRef.current = true
   }, [planner, byKey])
+
+  // Cross-device Pomodoro sync: while this device isn't already showing a focus
+  // view, poll for a session started elsewhere (laptop, phone) and mirror it here
+  // too. While mirroring one, keep polling to notice it ending elsewhere so this
+  // device exits along with it. Never runs while this device owns an active local
+  // session — that one already tracks its own state via reportFocusState.
+  useEffect(() => {
+    if (focusStage !== 'list' && !remoteAdoptedSession) return
+    let cancelled = false
+
+    async function poll() {
+      if (cancelled || document.visibilityState === 'hidden') return
+      let data
+      try {
+        data = await (await fetch('/api/focus/state')).json()
+      } catch {
+        return
+      }
+      if (cancelled) return
+
+      if (remoteAdoptedSession) {
+        if (!data.active || data.session_id !== remoteAdoptedSession.sessionId) {
+          setFocusStage('list')
+          setFocusItem(null)
+          setRemoteAdoptedSession(null)
+          clearFocusSession()
+        }
+        return
+      }
+
+      if (focusStage === 'list' && data.active) {
+        const remaining = Math.round((new Date(data.ends_at) - Date.now()) / 1000)
+        if (remaining <= 0) return
+        const matched = data.task_id ? byKey[`task-${data.task_id}`] : null
+        const item = matched || { key: `remote-focus-${data.session_id}`, kind: 'remote', title: 'Focus session', raw: {} }
+        setRemoteAdoptedSession({ sessionId: data.session_id, secondsLeft: remaining })
+        setFocusItem(item)
+        setFocusStage('focus')
+      }
+    }
+
+    poll()
+    const id = setInterval(poll, 15000)
+    document.addEventListener('visibilitychange', poll)
+    return () => {
+      cancelled = true
+      clearInterval(id)
+      document.removeEventListener('visibilitychange', poll)
+    }
+  }, [focusStage, remoteAdoptedSession, byKey])
 
   const sortedKeys = [...items]
     .sort((a, b) => {
@@ -315,7 +371,9 @@ export default function TodayCards({ tasks, onToggle: onToggleTask, onDelete: on
   function handleFocusTransitionEnd(e) {
     if (e.target !== e.currentTarget || e.propertyName !== 'opacity') return
     if (focusStage === 'toFocus') setFocusStage('focus')
-    else if (focusStage === 'toList') { setFocusStage('list'); setFocusItem(null); clearFocusSession() }
+    else if (focusStage === 'toList') {
+      setFocusStage('list'); setFocusItem(null); setRemoteAdoptedSession(null); clearFocusSession()
+    }
   }
 
   function getPieces(item) {
@@ -327,15 +385,17 @@ export default function TodayCards({ tasks, onToggle: onToggleTask, onDelete: on
   }
 
   async function completeFocusItem(item) {
+    // A mirrored session with no matched task/routine (see the poll effect)
+    // has nothing local to mark done -- just exits the view.
     if (item.kind === 'task') await toggleTaskDone(item)
-    else await toggleRoutineDone(item)
+    else if (item.kind === 'routine') await toggleRoutineDone(item)
   }
 
-  function logFocusMinutes(item, minutes) {
+  function logFocusMinutes(item, minutes, sessionId) {
     fetch('/api/activity/focus', {
       method: 'POST',
       headers: { 'content-type': 'application/json' },
-      body: JSON.stringify({ mode: 'focus', minutes, task_id: item.kind === 'task' ? item.raw.id : null })
+      body: JSON.stringify({ mode: 'focus', minutes, task_id: item.kind === 'task' ? item.raw.id : null, session_id: sessionId || null })
     }).catch(() => {})
     onCompletion?.('focus')
   }
@@ -353,9 +413,13 @@ export default function TodayCards({ tasks, onToggle: onToggleTask, onDelete: on
         method: 'POST',
         headers: { 'content-type': 'application/json' },
         body: JSON.stringify({ minutes, task_id: item?.kind === 'task' ? item.raw.id : null, mode: 'focus' })
-      }).catch(() => {})
+      })
+        .then(r => r.json())
+        .then(data => { activeSessionIdRef.current = data.session_id || null })
+        .catch(() => {})
     } else {
       fetch('/api/focus/state', { method: 'DELETE' }).catch(() => {})
+      activeSessionIdRef.current = null
     }
   }
 
@@ -460,8 +524,13 @@ export default function TodayCards({ tasks, onToggle: onToggleTask, onDelete: on
             onPiecesChange={pieces => setPiecesFor(liveFocusItem, pieces)}
             onExit={requestExitFocus}
             onComplete={async () => { await completeFocusItem(liveFocusItem); requestExitFocus() }}
-            onLogFocus={minutes => logFocusMinutes(liveFocusItem, minutes)}
-            onFocusStateChange={(active, endsAt) => reportFocusState(liveFocusItem, active, endsAt)}
+            onLogFocus={minutes => logFocusMinutes(liveFocusItem, minutes, remoteAdoptedSession?.sessionId || activeSessionIdRef.current)}
+            // A mirrored session isn't owned by this device -- it must never
+            // POST/DELETE /api/focus/state itself (that would cancel or
+            // restart the session actually running on the originating device).
+            onFocusStateChange={remoteAdoptedSession ? undefined : (active, endsAt) => reportFocusState(liveFocusItem, active, endsAt)}
+            initialSecondsLeft={remoteAdoptedSession?.secondsLeft}
+            autoStart={!!remoteAdoptedSession}
           />
         ) : null}
       </div>

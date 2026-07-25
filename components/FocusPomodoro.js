@@ -32,11 +32,17 @@ function formatTime(totalSeconds) {
 // with that card's own color, a short on-device-generated label standing in for
 // the task name ("Deep work block" instead of the full title), and the same
 // section breaking the task into smaller pieces while working it.
-export default function FocusPomodoro({ item, bgColorClass, textColorClass, pieces, onPiecesChange, onExit, onComplete, onLogFocus, onFocusStateChange }) {
-  const [initial] = useState(() => restoreFor(item))
+// initialSecondsLeft/autoStart are set only when this view is mirroring a
+// session started on another device (see TodayCards.js's poll effect) — the
+// clock there is genuinely already running, so it skips the normal
+// resumes-paused contract and starts ticking immediately.
+export default function FocusPomodoro({ item, bgColorClass, textColorClass, pieces, onPiecesChange, onExit, onComplete, onLogFocus, onFocusStateChange, initialSecondsLeft, autoStart }) {
+  const [initial] = useState(() => (
+    initialSecondsLeft != null ? { mode: MODES[0], secondsLeft: initialSecondsLeft, focusSeconds: 0 } : restoreFor(item)
+  ))
   const [mode, setMode] = useState(initial.mode)
   const [secondsLeft, setSecondsLeft] = useState(initial.secondsLeft)
-  const [running, setRunning] = useState(false) // always resumes paused — never silently counts closed-tab time
+  const [running, setRunning] = useState(!!autoStart) // otherwise always resumes paused — never silently counts closed-tab time
   const [newPiece, setNewPiece] = useState('')
   const [finishing, setFinishing] = useState(false)
   const [shortTitle, setShortTitle] = useState('')
