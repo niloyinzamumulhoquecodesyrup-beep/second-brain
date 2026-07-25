@@ -232,7 +232,7 @@ export default function TodayCards({ tasks, onToggle: onToggleTask, onDelete: on
         const remaining = Math.round((new Date(data.ends_at) - Date.now()) / 1000)
         if (remaining <= 0) return
         const matched = data.task_id ? byKey[`task-${data.task_id}`] : null
-        const item = matched || { key: `remote-focus-${data.session_id}`, kind: 'remote', title: 'Focus session', raw: {} }
+        const item = matched || { key: `remote-focus-${data.session_id}`, kind: 'remote', title: data.label || 'Focus session', raw: {} }
         setRemoteAdoptedSession({ sessionId: data.session_id, secondsLeft: remaining })
         setFocusItem(item)
         setFocusStage('focus')
@@ -412,7 +412,7 @@ export default function TodayCards({ tasks, onToggle: onToggleTask, onDelete: on
       fetch('/api/focus/state', {
         method: 'POST',
         headers: { 'content-type': 'application/json' },
-        body: JSON.stringify({ minutes, task_id: item?.kind === 'task' ? item.raw.id : null, mode: 'focus' })
+        body: JSON.stringify({ minutes, task_id: item?.kind === 'task' ? item.raw.id : null, mode: 'focus', label: item?.title || null })
       })
         .then(r => r.json())
         .then(data => { activeSessionIdRef.current = data.session_id || null })

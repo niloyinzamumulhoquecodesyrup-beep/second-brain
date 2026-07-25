@@ -3,7 +3,7 @@ import { requireAuth } from '../../../lib/withAuth'
 
 async function handleGet(req, res, pool, userId) {
   const { rows } = await pool.query(
-    `SELECT id, mode, started_at, ends_at, task_id FROM focus_sessions
+    `SELECT id, mode, started_at, ends_at, task_id, label FROM focus_sessions
      WHERE user_id = $1 AND status = 'active' AND ends_at > now()
      ORDER BY started_at DESC LIMIT 1`,
     [userId]
@@ -16,12 +16,13 @@ async function handleGet(req, res, pool, userId) {
     mode: row.mode,
     started_at: row.started_at,
     ends_at: row.ends_at,
-    task_id: row.task_id
+    task_id: row.task_id,
+    label: row.label
   })
 }
 
 async function handlePost(req, res, pool, userId) {
-  const { minutes, task_id, mode } = req.body || {}
+  const { minutes, task_id, mode, label } = req.body || {}
   const mins = Number(minutes)
   if (!Number.isFinite(mins) || mins < 1 || mins > 1440) {
     return res.status(400).json({ error: 'minutes must be between 1 and 1440' })
@@ -40,10 +41,10 @@ async function handlePost(req, res, pool, userId) {
       [userId]
     )
     const { rows } = await client.query(
-      `INSERT INTO focus_sessions (user_id, task_id, mode, ends_at)
-       VALUES ($1, $2, $3, now() + ($4 || ' minutes')::interval)
-       RETURNING id, mode, started_at, ends_at, task_id`,
-      [userId, task_id || null, mode || 'focus', mins]
+      `INSERT INTO focus_sessions (user_id, task_id, mode, ends_at, label)
+       VALUES ($1, $2, $3, now() + ($4 || ' minutes')::interval, $5)
+       RETURNING id, mode, started_at, ends_at, task_id, label`,
+      [userId, task_id || null, mode || 'focus', mins, typeof label === 'string' ? label.slice(0, 200) : null]
     )
     await client.query('COMMIT')
     const row = rows[0]
@@ -53,7 +54,8 @@ async function handlePost(req, res, pool, userId) {
       mode: row.mode,
       started_at: row.started_at,
       ends_at: row.ends_at,
-      task_id: row.task_id
+      task_id: row.task_id,
+      label: row.label
     })
   } catch (err) {
     await client.query('ROLLBACK')
