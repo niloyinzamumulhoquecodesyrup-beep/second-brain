@@ -1,5 +1,6 @@
 import { useState, useEffect } from 'react'
 import Layout from '../components/Layout'
+import NudgesStrip from '../components/NudgesStrip'
 import TasksPanel from '../components/TasksPanel'
 import RoutinePlanner from '../components/RoutinePlanner'
 import RewardPanel from '../components/RewardPanel'
@@ -79,6 +80,8 @@ export default function Work({ user }) {
       </div>
 
       <div className="space-y-6">
+        <NudgesStrip />
+
         <RewardPanel stats={stats} />
 
         <TasksPanel onCompletion={handleCompletion} />

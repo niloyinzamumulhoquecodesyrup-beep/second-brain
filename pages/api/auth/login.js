@@ -25,7 +25,7 @@ export default async function handler(req, res) {
 
   const pool = getPool()
   try {
-    const { rows } = await pool.query('SELECT id, email, password_hash FROM users WHERE lower(email) = lower($1)', [email])
+    const { rows } = await pool.query('SELECT id, email, password_hash, deactivated_at FROM users WHERE lower(email) = lower($1)', [email])
     const user = rows[0]
     if (!user) {
       recordAttempt('login', ip, WINDOW_MS)
@@ -36,6 +36,10 @@ export default async function handler(req, res) {
     if (!ok) {
       recordAttempt('login', ip, WINDOW_MS)
       return res.status(401).json({ error: 'Invalid email or password' })
+    }
+
+    if (user.deactivated_at) {
+      return res.status(403).json({ error: 'This account has been deactivated' })
     }
 
     const token = createSessionToken(user)

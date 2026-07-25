@@ -49,10 +49,11 @@ async function handler(req, res) {
     }
   } else if (req.method === 'POST') {
     const { title, content, tags, para, source_url } = req.body || {}
+    const trimmedTitle = (title || '').trim().slice(0, 30)
     try {
       const { rows } = await pool.query(
         `INSERT INTO notes (user_id, title, content, tags, para, source_url) VALUES ($1,$2,$3,$4,$5,$6) RETURNING *`,
-        [userId, title || 'Untitled', content || null, tags || null, para || 'inbox', source_url || null]
+        [userId, trimmedTitle || 'Untitled', content || null, tags || null, para || 'inbox', source_url || null]
       )
       const note = rows[0]
       await syncNoteLinks(pool, userId, note.id, note.content)

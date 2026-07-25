@@ -1049,13 +1049,18 @@ function RoomView({ room, onLeave, identity }) {
             >
               <PaperclipIcon />
             </button>
-            <input
-              value={draft}
-              onChange={e => setDraft(e.target.value)}
-              maxLength={500}
-              placeholder={uploading ? 'Sharing file…' : 'Say something…'}
-              className={`flex-1 ${pillInputClass}`}
-            />
+            <div className="relative flex-1">
+              <input
+                value={draft}
+                onChange={e => setDraft(e.target.value)}
+                maxLength={500}
+                placeholder={uploading ? 'Sharing file…' : 'Say something…'}
+                className={`w-full pr-12 ${pillInputClass}`}
+              />
+              <span className="pointer-events-none absolute right-3.5 top-1/2 -translate-y-1/2 text-[10px] tabular-nums text-mist-500">
+                {draft.length}/500
+              </span>
+            </div>
             <button
               type="submit"
               disabled={sending || !draft.trim()}

@@ -1,6 +1,7 @@
 import { hasDb, getPool } from '../../../lib/db'
 import { requireAuth } from '../../../lib/withAuth'
 import { logActivity } from '../../../lib/activityLog'
+import { composeTaskMessage, taskFireAt } from '../../../lib/reminders'
 
 async function handler(req, res) {
   if (!hasDb()) return res.status(500).json({ error: 'Database not configured' })
@@ -27,11 +28,35 @@ async function handler(req, res) {
        WHERE id = $7 AND user_id = $8 RETURNING *`,
       [title, done, due_date, start_min, duration_min, piecesParam, id, userId]
     )
-    if (!rows[0]) return res.status(404).json({ error: 'Not found' })
+    const task = rows[0]
+    if (!task) return res.status(404).json({ error: 'Not found' })
     if (done === true && !wasDone) {
-      await logActivity(pool, userId, 'task_completed', id, { title: rows[0].title, note_id: rows[0].note_id })
+      await logActivity(pool, userId, 'task_completed', id, { title: task.title, note_id: task.note_id })
     }
-    return res.status(200).json(rows[0])
+
+    if (task.done) {
+      await pool.query(`UPDATE reminders SET status = 'done' WHERE task_id = $1 AND origin = 'system' AND status = 'active'`, [id])
+    } else if (task.due_date) {
+      const existing = await pool.query(
+        `SELECT id FROM reminders WHERE task_id = $1 AND origin = 'system' LIMIT 1`,
+        [id]
+      )
+      const fireAt = taskFireAt(task.due_date, task.start_min)
+      const message = composeTaskMessage(task.title)
+      if (existing.rows[0]) {
+        await pool.query(
+          `UPDATE reminders SET fire_at = $2, message = $3, status = 'active', snooze_until = NULL WHERE id = $1`,
+          [existing.rows[0].id, fireAt, message]
+        )
+      } else {
+        await pool.query(
+          `INSERT INTO reminders (user_id, task_id, message, fire_at, kind, origin) VALUES ($1,$2,$3,$4,'task','system')`,
+          [userId, id, message, fireAt]
+        )
+      }
+    }
+
+    return res.status(200).json(task)
   } else if (req.method === 'DELETE') {
     const { rows: deleted, rowCount } = await pool.query('DELETE FROM tasks WHERE id=$1 AND user_id=$2 RETURNING title, done', [id, userId])
     if (!rowCount) return res.status(404).json({ error: 'Not found' })

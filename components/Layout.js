@@ -1,8 +1,11 @@
 import { useRouter } from 'next/router'
 import Link from 'next/link'
-import { useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import ThemeToggle from './ThemeToggle'
 import ReminderToast from './ReminderToast'
+import NotificationBell from './NotificationBell'
+import UserMenu from './UserMenu'
+import SettingsModal from './SettingsModal'
 import { sounds } from '../lib/sounds'
 
 const NAV_ITEMS = [
@@ -12,19 +15,73 @@ const NAV_ITEMS = [
   { href: '/other-brains', label: 'MINDVERSE' }
 ]
 
-// Sample copy for the bell's "preview a reminder" demo — the Reminders & Alerts
-// plan's exact gentle framing ("When you're ready: …"), not real reminder data.
-const DEMO_REMINDERS = [
-  { message: "Reply to Sam about the proposal, whenever you get a moment.", href: '/work' },
-  { message: 'A quick one: water the plants before it slips your mind.', href: '/work' },
-  { message: 'Your morning pages routine is coming up.', href: '/work' },
-  { message: "That task you split into pieces yesterday: the first piece is still there, waiting.", href: '/work' }
-]
+const POLL_MS = 60000
 
 export default function Layout({ children, user }) {
   const router = useRouter()
   const [loggingOut, setLoggingOut] = useState(false)
-  const [reminder, setReminder] = useState(null)
+  const [showSettings, setShowSettings] = useState(false)
+  const [profile, setProfile] = useState({ name: user?.name || null, hasAvatar: !!user?.hasAvatar })
+  const [avatarVersion, setAvatarVersion] = useState(0)
+
+  const [reminders, setReminders] = useState([])
+  const [dismissedIds, setDismissedIds] = useState(() => new Set())
+  const seenDueIdsRef = useRef(new Set())
+  const askedPermissionRef = useRef(false)
+
+  async function fetchReminders() {
+    try {
+      const res = await fetch('/api/reminders')
+      if (!res.ok) return
+      const rows = await res.json()
+      setReminders(rows)
+
+      const dueNow = rows.filter(r => r.due)
+      const freshlyDue = dueNow.filter(r => !seenDueIdsRef.current.has(r.id))
+      if (freshlyDue.length > 0) {
+        dueNow.forEach(r => seenDueIdsRef.current.add(r.id))
+        sounds.notification()
+        if (typeof window !== 'undefined' && 'Notification' in window) {
+          if (Notification.permission === 'granted') {
+            new Notification('Second Brain', { body: freshlyDue[0].message, icon: '/favicon.svg' })
+          } else if (Notification.permission === 'default' && !askedPermissionRef.current) {
+            askedPermissionRef.current = true
+            Notification.requestPermission()
+          }
+        }
+      }
+    } catch {
+      // polling -- a failed check just tries again next interval
+    }
+  }
+
+  useEffect(() => {
+    fetchReminders()
+    const id = setInterval(fetchReminders, POLL_MS)
+    return () => clearInterval(id)
+  }, [])
+
+  async function actOnReminder(id, action, minutes) {
+    try {
+      await fetch(`/api/reminders/${id}`, {
+        method: 'PATCH',
+        headers: { 'content-type': 'application/json' },
+        body: JSON.stringify({ action, minutes })
+      })
+    } catch {
+      // best-effort -- next poll reconciles either way
+    }
+    fetchReminders()
+  }
+
+  function dismissLocally(id) {
+    setDismissedIds(prev => new Set(prev).add(id))
+  }
+
+  function updateProfile(patch) {
+    setProfile(p => ({ ...p, ...patch }))
+    if (patch.bumpAvatarVersion) setAvatarVersion(v => v + 1)
+  }
 
   async function logout() {
     setLoggingOut(true)
@@ -32,23 +89,8 @@ export default function Layout({ children, user }) {
     router.push('/login')
   }
 
-  // Bell preview — an emulation of what the Reminders & Alerts plan's delivery
-  // layer would show: the in-app toast every time, plus a real OS-level browser
-  // notification if permission is granted (same feel Phase B's Web Push would
-  // eventually deliver even with the tab closed; here it's a same-tab preview).
-  // Nothing here reads or writes a real reminders table — it's sample copy.
-  function emulateNotification() {
-    const demo = DEMO_REMINDERS[Math.floor(Math.random() * DEMO_REMINDERS.length)]
-    setReminder(demo)
-    sounds.notification()
-    if (typeof window !== 'undefined' && 'Notification' in window) {
-      const fire = () => new Notification('Second Brain', { body: demo.message, icon: '/favicon.svg' })
-      if (Notification.permission === 'granted') fire()
-      else if (Notification.permission !== 'denied') {
-        Notification.requestPermission().then(p => { if (p === 'granted') fire() })
-      }
-    }
-  }
+  const dueReminders = reminders.filter(r => r.due)
+  const toastReminder = dueReminders.find(r => !dismissedIds.has(r.id)) || null
 
   return (
     <div className="min-h-screen bg-ink-950 bg-aura text-mist-100">
@@ -79,18 +121,15 @@ export default function Layout({ children, user }) {
           </nav>
 
           <div className="flex items-center gap-4">
-            <button
-              onClick={emulateNotification}
-              className="text-mist-300 hover:text-gold-300"
-              aria-label="Preview a reminder notification"
-              title="Preview a reminder notification"
-            >
-              🔔
-            </button>
+            <NotificationBell dueReminders={dueReminders} onAction={actOnReminder} />
             <ThemeToggle />
-            <button onClick={logout} disabled={loggingOut} className="btn-secondary !px-4 !py-1.5 text-xs">
-              {loggingOut ? 'Signing out…' : 'Sign out'}
-            </button>
+            <UserMenu
+              user={{ email: user?.email, ...profile }}
+              avatarVersion={avatarVersion}
+              onOpenSettings={() => setShowSettings(true)}
+              onLogout={logout}
+              loggingOut={loggingOut}
+            />
           </div>
         </div>
         <nav className="flex items-center gap-5 overflow-x-auto border-t border-ink-800 px-6 py-2 md:hidden" data-nav="mobile">
@@ -113,12 +152,22 @@ export default function Layout({ children, user }) {
 
       <main className="mx-auto max-w-6xl px-6 py-10">{children}</main>
 
-      {reminder && (
+      {toastReminder && (
         <ReminderToast
-          reminder={reminder}
-          onDismiss={() => setReminder(null)}
-          onDone={() => setReminder(null)}
-          onSnooze={() => setReminder(null)}
+          reminder={toastReminder}
+          onDismiss={() => dismissLocally(toastReminder.id)}
+          onDone={() => actOnReminder(toastReminder.id, 'done')}
+          onSnooze={minutes => actOnReminder(toastReminder.id, 'snooze', minutes)}
+          onAccept={() => actOnReminder(toastReminder.id, 'accept')}
+        />
+      )}
+
+      {showSettings && (
+        <SettingsModal
+          user={{ email: user?.email, ...profile }}
+          avatarVersion={avatarVersion}
+          onClose={() => setShowSettings(false)}
+          onProfileUpdate={updateProfile}
         />
       )}
     </div>

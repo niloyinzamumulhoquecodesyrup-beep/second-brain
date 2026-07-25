@@ -32,7 +32,7 @@ function formatTime(totalSeconds) {
 // with that card's own color, a short on-device-generated label standing in for
 // the task name ("Deep work block" instead of the full title), and the same
 // section breaking the task into smaller pieces while working it.
-export default function FocusPomodoro({ item, bgColorClass, textColorClass, pieces, onPiecesChange, onExit, onComplete, onLogFocus }) {
+export default function FocusPomodoro({ item, bgColorClass, textColorClass, pieces, onPiecesChange, onExit, onComplete, onLogFocus, onFocusStateChange }) {
   const [initial] = useState(() => restoreFor(item))
   const [mode, setMode] = useState(initial.mode)
   const [secondsLeft, setSecondsLeft] = useState(initial.secondsLeft)
@@ -99,6 +99,18 @@ export default function FocusPomodoro({ item, bgColorClass, textColorClass, piec
     const id = setInterval(() => { sounds.pausedReminder(); flashPause() }, 15000)
     return () => clearInterval(id)
   }, [running, secondsLeft, mode.minutes])
+
+  // Live "don't notify me right now" signal for the reminders system (see
+  // REMINDERS_PLAN.md "Do-not-disturb") -- only the actual pomodoro counts, not
+  // breaks. Cleanup fires the "stop" signal on pause, mode switch, or unmount, so a
+  // held suppression can never outlive the session that set it.
+  useEffect(() => {
+    if (running && mode.key === 'pomodoro') {
+      onFocusStateChange?.(true, new Date(Date.now() + secondsLeft * 1000).toISOString())
+      return () => onFocusStateChange?.(false, null)
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [running, mode.key])
 
   function toggleRun() {
     if (running) { sounds.pomodoroPause(); flashPause() }

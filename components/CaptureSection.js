@@ -1,5 +1,7 @@
 import { useState } from 'react'
 
+const TITLE_MAX = 30
+
 const PARA_OPTIONS = [
   { value: 'inbox', label: 'Inbox, sort it later (recommended)' },
   { value: 'project', label: 'Project, short-term, has a deadline' },
@@ -44,7 +46,18 @@ export default function CaptureSection({ onSaved }) {
 
   return (
     <form onSubmit={submit} className="card space-y-4 border-t-2 border-emerald-400/30 p-6">
-      <input className="input" placeholder="Title" value={title} onChange={e => setTitle(e.target.value)} />
+      <div className="relative">
+        <input
+          className="input pr-14"
+          placeholder="Title"
+          value={title}
+          onChange={e => setTitle(e.target.value)}
+          maxLength={TITLE_MAX}
+        />
+        <span className="pointer-events-none absolute right-3.5 top-1/2 -translate-y-1/2 text-xs text-mist-400">
+          {title.length}/{TITLE_MAX}
+        </span>
+      </div>
       <textarea
         className="input min-h-[220px] resize-y"
         placeholder="Write, paste, or reflect here. Use [[Title]] to connect this to another note."

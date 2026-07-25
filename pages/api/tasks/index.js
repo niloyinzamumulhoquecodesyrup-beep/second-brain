@@ -1,6 +1,7 @@
 import { hasDb, getPool } from '../../../lib/db'
 import { requireAuth } from '../../../lib/withAuth'
 import { logActivity } from '../../../lib/activityLog'
+import { composeTaskMessage, taskFireAt } from '../../../lib/reminders'
 
 async function handler(req, res) {
   if (!hasDb()) return res.status(500).json({ error: 'Database not configured' })
@@ -38,8 +39,17 @@ async function handler(req, res) {
         'INSERT INTO tasks (user_id, note_id, title, due_date) VALUES ($1,$2,$3,$4) RETURNING *',
         [userId, note_id || null, title.trim(), due_date || null]
       )
-      await logActivity(pool, userId, 'task_created', rows[0].id, { title: rows[0].title, note_id: rows[0].note_id })
-      return res.status(201).json(rows[0])
+      const task = rows[0]
+      await logActivity(pool, userId, 'task_created', task.id, { title: task.title, note_id: task.note_id })
+
+      if (task.due_date) {
+        await pool.query(
+          `INSERT INTO reminders (user_id, task_id, message, fire_at, kind, origin)
+           VALUES ($1,$2,$3,$4,'task','system')`,
+          [userId, task.id, composeTaskMessage(task.title), taskFireAt(task.due_date, task.start_min)]
+        )
+      }
+      return res.status(201).json(task)
     } catch (err) {
       console.error(err)
       return res.status(500).json({ error: 'db error' })
