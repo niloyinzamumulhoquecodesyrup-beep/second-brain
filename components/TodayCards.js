@@ -36,17 +36,19 @@ function pick(list, key) {
 // A single task or routine instance rendered as a colorful preset-style card:
 // icon, title, time, and inline actions. Draggable — drop it above or below
 // another card to reorder, which opens the time popup for it.
-function TodayCard({ item, color, icon, dragging, dropEdge, onToggle, onSecondary, secondaryLabel, onStart, dragHandlers }) {
+function TodayCard({ item, color, icon, dragging, dropEdge, onToggle, onSecondary, secondaryLabel, onStart, dragHandlers, highlighted }) {
   return (
     <div
+      id={item.key}
       draggable
       {...dragHandlers}
       className={[
-        'cursor-grab select-none rounded-xl px-3 py-2 text-white shadow-sm transition active:cursor-grabbing',
+        'cursor-grab select-none rounded-xl px-3 py-2 text-white shadow-sm transition-all duration-1000 active:cursor-grabbing',
         color,
         item.done ? 'opacity-60' : '',
         dragging ? 'opacity-40' : '',
-        dropEdge ? 'outline outline-2 outline-offset-2 outline-white' : ''
+        dropEdge ? 'outline outline-2 outline-offset-2 outline-white' : '',
+        highlighted ? 'ring-4 ring-white ring-offset-2 ring-offset-ink-950' : ''
       ].join(' ')}
     >
       <div className="flex items-center gap-2.5">
@@ -115,7 +117,7 @@ function TimePopup({ item, color, time, setTime, busy, onSave, onAutoBalance, on
 // Today's tasks plus today's routine instances, rendered as one colorful,
 // drag-to-reorder preset-style list (see llama life's task presets) instead of
 // the plain bordered rows used for the other task groups.
-export default function TodayCards({ tasks, onToggle: onToggleTask, onDelete: onDeleteTask, onUpdate, onCompletion, empty }) {
+export default function TodayCards({ tasks, onToggle: onToggleTask, onDelete: onDeleteTask, onUpdate, onCompletion, empty, highlightKey }) {
   const [planner, setPlanner] = useState(null)
   const [pendingOrder, setPendingOrder] = useState(null)
   const [draggedKey, setDraggedKey] = useState(null)
@@ -177,6 +179,14 @@ export default function TodayCards({ tasks, onToggle: onToggleTask, onDelete: on
     })
   ]
   const byKey = Object.fromEntries(items.map(i => [i.key, i]))
+
+  // A reminder's "Open" link lands here with ?highlight=task-<id> -- scroll the
+  // matching card into view once it actually exists in this list.
+  useEffect(() => {
+    if (!highlightKey || !byKey[highlightKey]) return
+    const el = document.getElementById(highlightKey)
+    el?.scrollIntoView({ behavior: 'smooth', block: 'center' })
+  }, [highlightKey]) // eslint-disable-line react-hooks/exhaustive-deps
 
   // Resumes a focus session that survived a page refresh (lib/focusSession.js) —
   // waits for the routine fetch to land too, since a saved routine session can't
@@ -511,6 +521,7 @@ export default function TodayCards({ tasks, onToggle: onToggleTask, onDelete: on
                   secondaryLabel={item.kind === 'task' ? 'Delete' : 'Skip today'}
                   onStart={() => startFocus(item)}
                   dragHandlers={dragHandlersFor(item.key)}
+                  highlighted={item.key === highlightKey}
                 />
               ))}
             </div>

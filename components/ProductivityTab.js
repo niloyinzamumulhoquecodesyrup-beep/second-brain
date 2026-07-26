@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
 import RoutinePlanner from './RoutinePlanner'
+import DatePicker from './DatePicker'
 import { ymdToDate, toYMD, addDays, weekdayIndex, dayEntries } from '../lib/plannerDay'
 
 // Productivity support tab: a day/week planner co-authored by the refresh cycle.
@@ -775,11 +776,10 @@ export default function ProductivityTab() {
                 {c.label}
               </button>
             ))}
-            <input
-              type="date"
+            <DatePicker
               value={selectedDate}
-              onChange={e => { if (e.target.value) { setSelectedDate(e.target.value); setSelectedId(null) } }}
-              className="rounded-full border border-ink-600 bg-ink-900 px-3 py-1 text-sm text-mist-300 focus:border-emerald-400/60 focus:outline-none"
+              onChange={ymd => { if (ymd) { setSelectedDate(ymd); setSelectedId(null) } }}
+              buttonClassName="rounded-full border border-ink-600 bg-ink-900 px-3 py-1 text-sm text-mist-300 focus:border-emerald-400/60 focus:outline-none"
             />
           </div>
         </div>

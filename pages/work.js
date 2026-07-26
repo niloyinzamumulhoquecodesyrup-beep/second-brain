@@ -1,4 +1,5 @@
 import { useState, useEffect } from 'react'
+import { useRouter } from 'next/router'
 import Layout from '../components/Layout'
 import NudgesStrip from '../components/NudgesStrip'
 import TasksPanel from '../components/TasksPanel'
@@ -30,12 +31,23 @@ const SURPRISE_LINES = [
 // sessions via Start), the reward panel, and the routine planner. Capture lives as
 // a popup on Organize now — this page is about doing the work itself.
 export default function Work({ user }) {
+  const router = useRouter()
   const [stats, setStats] = useState(null)
   const [bonus, setBonus] = useState(null) // { message } | null
 
   useEffect(() => {
     fetch('/api/stats').then(r => r.json()).then(setStats).catch(() => {})
   }, [])
+
+  // A reminder's "Open" link arrives as ?highlight=task-<id> (see
+  // lib/reminders.js#reminderOpenTarget) -- read once, hand it to TasksPanel to
+  // scroll/glow the matching card, then strip it from the URL so a refresh or
+  // back-navigation doesn't replay the highlight.
+  const highlightKey = typeof router.query.highlight === 'string' ? router.query.highlight : null
+  useEffect(() => {
+    if (!highlightKey) return
+    router.replace('/work', undefined, { shallow: true })
+  }, [highlightKey]) // eslint-disable-line react-hooks/exhaustive-deps
 
   // Every real task completion (list checkbox or FocusPomodoro's Done button) and
   // every logged focus session flows through here via TasksPanel/TodayCards'
@@ -84,7 +96,7 @@ export default function Work({ user }) {
 
         <RewardPanel stats={stats} />
 
-        <TasksPanel onCompletion={handleCompletion} />
+        <TasksPanel onCompletion={handleCompletion} highlightKey={highlightKey} />
 
         <RoutinePlanner />
       </div>

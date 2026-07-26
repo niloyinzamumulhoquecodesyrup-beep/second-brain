@@ -2,6 +2,7 @@ import Head from 'next/head'
 import '../styles/globals.css'
 import { TourProvider } from '../components/TourProvider'
 import { ThemeProvider } from '../components/ThemeProvider'
+import RouteLoader from '../components/RouteLoader'
 
 export default function App({ Component, pageProps }) {
   return (
@@ -12,6 +13,7 @@ export default function App({ Component, pageProps }) {
         <meta name="robots" content="noindex, nofollow" />
         <link rel="icon" href="/favicon.svg" type="image/svg+xml" />
       </Head>
+      <RouteLoader />
       <ThemeProvider>
         <TourProvider>
           <Component {...pageProps} />

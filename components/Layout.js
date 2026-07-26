@@ -7,10 +7,11 @@ import NotificationBell from './NotificationBell'
 import UserMenu from './UserMenu'
 import SettingsModal from './SettingsModal'
 import { sounds } from '../lib/sounds'
+import { reminderOpenTarget } from '../lib/reminders'
 
 const NAV_ITEMS = [
   { href: '/work', label: 'Work' },
-  { href: '/', label: 'Organize' },
+  { href: '/organize', label: 'Organize' },
   { href: '/mind', label: 'Mind' },
   { href: '/other-brains', label: 'MINDVERSE' }
 ]
@@ -43,7 +44,16 @@ export default function Layout({ children, user }) {
         sounds.notification()
         if (typeof window !== 'undefined' && 'Notification' in window) {
           if (Notification.permission === 'granted') {
-            new Notification('Second Brain', { body: freshlyDue[0].message, icon: '/favicon.svg' })
+            const n = new Notification('Second Brain', { body: freshlyDue[0].message, icon: '/favicon.svg' })
+            const target = reminderOpenTarget(freshlyDue[0])
+            n.onclick = () => {
+              window.focus()
+              if (target) {
+                if (target.external) window.open(target.href, '_blank', 'noopener,noreferrer')
+                else router.push(target.href)
+              }
+              n.close()
+            }
           } else if (Notification.permission === 'default' && !askedPermissionRef.current) {
             askedPermissionRef.current = true
             Notification.requestPermission()
@@ -96,7 +106,7 @@ export default function Layout({ children, user }) {
     <div className="min-h-screen bg-ink-950 bg-aura text-mist-100">
       <header className="sticky top-0 z-30 border-b border-ink-700/80 bg-ink-950/85 backdrop-blur">
         <div className="mx-auto flex max-w-6xl items-center justify-between gap-6 px-6 py-4">
-          <Link href="/" className="flex items-center gap-2.5">
+          <Link href="/work" className="flex items-center gap-2.5">
             <span className="flex h-7 w-7 items-center justify-center rounded-full border border-emerald-400/50 bg-gradient-to-br from-emerald-500/20 via-violet-500/10 to-gold-500/20 text-xs text-emerald-300 font-serif">
               SB
             </span>
