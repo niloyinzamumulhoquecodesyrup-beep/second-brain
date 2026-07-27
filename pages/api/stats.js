@@ -11,7 +11,7 @@ async function handler(req, res) {
   const userId = req.user.id
 
   try {
-    const [paraCounts, distilledCount, packetCount, taskCounts, openTasks, linkCount, recent, tagRows, capturesByDay, focusSessionsByDay, focusSessionsTotal, tasksDoneByDay] = await Promise.all([
+    const [paraCounts, distilledCount, packetCount, taskCounts, openTasks, linkCount, recent, tagRows, capturesByDay, focusSessionsByDay, focusSessionsTotal, tasksDoneByDay, focusMinutesByDay, focusMinutesTotal] = await Promise.all([
       pool.query('SELECT para, count(*)::int AS count FROM notes WHERE user_id=$1 GROUP BY para', [userId]),
       pool.query('SELECT count(*)::int AS count FROM notes WHERE user_id=$1 AND distilled=true', [userId]),
       pool.query('SELECT count(*)::int AS count FROM packets WHERE user_id=$1', [userId]),
@@ -29,18 +29,20 @@ async function handler(req, res) {
       ),
       pool.query('SELECT id, title, para, created_at FROM notes WHERE user_id=$1 ORDER BY created_at DESC LIMIT 6', [userId]),
       pool.query('SELECT tags FROM notes WHERE user_id=$1', [userId]),
-      // §4j attention-over-time: notes captured per day over the last 21 days, oldest first
+      // §4j attention-over-time: notes captured per day over the last 30 days, oldest
+      // first. 30 rather than 21 so the reward panel's week/month totals line can sum
+      // a real calendar month from this same array instead of a truncated one.
       pool.query(
         `SELECT to_char(date_trunc('day', created_at), 'YYYY-MM-DD') AS day, count(*)::int AS count
-         FROM notes WHERE user_id=$1 AND created_at > now() - interval '21 days'
+         FROM notes WHERE user_id=$1 AND created_at > now() - interval '30 days'
          GROUP BY 1 ORDER BY 1`,
         [userId]
       ),
-      // Reward panel: a completed focus session per day, same 21-day window as capturesByDay.
+      // Reward panel: a completed focus session per day, same 30-day window as capturesByDay.
       pool.query(
         `SELECT to_char(date_trunc('day', created_at), 'YYYY-MM-DD') AS day, count(*)::int AS count
          FROM activity_log
-         WHERE user_id=$1 AND event_type='focus_session' AND metadata->>'mode'='focus' AND created_at > now() - interval '21 days'
+         WHERE user_id=$1 AND event_type='focus_session' AND metadata->>'mode'='focus' AND created_at > now() - interval '30 days'
          GROUP BY 1 ORDER BY 1`,
         [userId]
       ),
@@ -51,8 +53,25 @@ async function handler(req, res) {
       pool.query(
         `SELECT to_char(date_trunc('day', created_at), 'YYYY-MM-DD') AS day, count(*)::int AS count
          FROM activity_log
-         WHERE user_id=$1 AND event_type='task_completed' AND created_at > now() - interval '21 days'
+         WHERE user_id=$1 AND event_type='task_completed' AND created_at > now() - interval '30 days'
          GROUP BY 1 ORDER BY 1`,
+        [userId]
+      ),
+      // Reward panel: minutes (not just a session count) per day, same 30-day window
+      // and mode filter as focusSessionsByDay. metadata->>'minutes' is only ever set
+      // when a session actually logged elapsed time (see lib/activityLog.js callers),
+      // so rows without it are excluded rather than counted as zero.
+      pool.query(
+        `SELECT to_char(date_trunc('day', created_at), 'YYYY-MM-DD') AS day, sum((metadata->>'minutes')::int)::int AS count
+         FROM activity_log
+         WHERE user_id=$1 AND event_type='focus_session' AND metadata->>'mode'='focus' AND metadata->>'minutes' IS NOT NULL AND created_at > now() - interval '30 days'
+         GROUP BY 1 ORDER BY 1`,
+        [userId]
+      ),
+      pool.query(
+        `SELECT COALESCE(sum((metadata->>'minutes')::int), 0)::int AS count
+         FROM activity_log
+         WHERE user_id=$1 AND event_type='focus_session' AND metadata->>'mode'='focus' AND metadata->>'minutes' IS NOT NULL`,
         [userId]
       )
     ])
@@ -85,7 +104,9 @@ async function handler(req, res) {
       capturesByDay: capturesByDay.rows,
       focusSessionsByDay: focusSessionsByDay.rows,
       focusSessionsTotal: focusSessionsTotal.rows[0].count,
-      tasksDoneByDay: tasksDoneByDay.rows
+      tasksDoneByDay: tasksDoneByDay.rows,
+      focusMinutesByDay: focusMinutesByDay.rows,
+      focusMinutesTotal: focusMinutesTotal.rows[0].count
     })
   } catch (err) {
     console.error(err)

@@ -407,7 +407,7 @@ export default function TodayCards({ tasks, onToggle: onToggleTask, onDelete: on
       headers: { 'content-type': 'application/json' },
       body: JSON.stringify({ mode: 'focus', minutes, task_id: item.kind === 'task' ? item.raw.id : null, session_id: sessionId || null })
     }).catch(() => {})
-    onCompletion?.('focus')
+    onCompletion?.('focus', minutes)
   }
 
   function reportFocusState(item, active, endsAt) {

@@ -56,7 +56,7 @@ export default function Work({ user }) {
   // round trip — then decides whether this moment earns the rare surprise-bonus
   // celebration: a freshly crossed level always does, otherwise a plain ~15%
   // variable-ratio roll. Never guaranteed, and missing it costs nothing.
-  function handleCompletion(type) {
+  function handleCompletion(type, minutes) {
     const totalKey = type === 'focus' ? 'focusSessionsTotal' : 'tasksDone'
     const dailyKey = type === 'focus' ? 'focusSessionsByDay' : 'tasksDoneByDay'
     const dimLabel = type === 'focus' ? 'Focus' : 'Follow-through'
@@ -64,6 +64,9 @@ export default function Work({ user }) {
     const nextTotal = prevTotal + 1
     const prevLevel = levelInfo(prevTotal).level
     const nextLevel = levelInfo(nextTotal).level
+    // Focus completions carry elapsed minutes too — bump the Focus time gauge in
+    // the same local update so it doesn't lag a page reload behind the other four.
+    const minutesDelta = type === 'focus' ? Math.max(0, Math.round(minutes) || 0) : 0
 
     setStats(prev => {
       if (!prev) return prev
@@ -73,7 +76,16 @@ export default function Work({ user }) {
       const nextDaily = idx >= 0
         ? daily.map((r, i) => (i === idx ? { ...r, count: r.count + 1 } : r))
         : [...daily, { day: today, count: 1 }]
-      return { ...prev, [totalKey]: nextTotal, [dailyKey]: nextDaily }
+      let next = { ...prev, [totalKey]: nextTotal, [dailyKey]: nextDaily }
+      if (minutesDelta > 0) {
+        const focusDaily = prev.focusMinutesByDay || []
+        const fIdx = focusDaily.findIndex(r => String(r.day).slice(0, 10) === today)
+        const nextFocusDaily = fIdx >= 0
+          ? focusDaily.map((r, i) => (i === fIdx ? { ...r, count: r.count + minutesDelta } : r))
+          : [...focusDaily, { day: today, count: minutesDelta }]
+        next = { ...next, focusMinutesTotal: (prev.focusMinutesTotal || 0) + minutesDelta, focusMinutesByDay: nextFocusDaily }
+      }
+      return next
     })
 
     if (nextLevel > prevLevel) {

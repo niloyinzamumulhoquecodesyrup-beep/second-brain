@@ -46,6 +46,28 @@ function toCountMap(rows) {
   return m
 }
 
+// Sums a [{day, count}] array over the trailing N days (today inclusive), the
+// same window shape medianTarget already reads — used for the week/month totals
+// line under the gauges. Missing days just contribute 0, no fetch needed.
+function sumLastNDays(dailyRows, days) {
+  const map = toCountMap(dailyRows)
+  let cursor = todayYMD()
+  let total = 0
+  for (let i = 0; i < days; i++) {
+    total += map[cursor] || 0
+    cursor = addDaysYMD(cursor, -1)
+  }
+  return total
+}
+
+function formatMinutes(mins) {
+  const m = Math.round(mins || 0)
+  if (m < 60) return `${m}m`
+  const h = Math.floor(m / 60)
+  const rem = m % 60
+  return rem ? `${h}h ${rem}m` : `${h}h`
+}
+
 // A day counts as "active" if anything real happened on it — capture, focus session,
 // or a completed task. Streak is framed positively: it counts consecutive active days
 // ending today-or-yesterday, so a day that hasn't happened yet never reads as "broken".
@@ -68,6 +90,8 @@ const BADGES = [
   { key: 'first_focus', label: 'First focus session', icon: '⏱️', check: s => s.focusSessionsTotal >= 1 },
   { key: 'focus_builder', label: '5 focus sessions', icon: '🔥', check: s => s.focusSessionsTotal >= 5 },
   { key: 'deep_focus', label: '25 focus sessions', icon: '💎', check: s => s.focusSessionsTotal >= 25 },
+  { key: 'focus_hour', label: '1 hour focused', icon: '🕐', check: s => s.focusMinutesTotal >= 60 },
+  { key: 'focus_marathon', label: '5 hours focused', icon: '🌙', check: s => s.focusMinutesTotal >= 300 },
   { key: 'streak_3', label: '3-day streak', icon: '⚡', check: s => s.streak >= 3 },
   { key: 'streak_7', label: '7-day streak', icon: '🌟', check: s => s.streak >= 7 }
 ]
@@ -162,8 +186,8 @@ function DimensionColumn({ label, value, target, color, level, progress }) {
 }
 
 export default function RewardPanel({ stats }) {
-  const { streak, todayNotes, todayFocus, todayTasks, earned, next } = useMemo(() => {
-    if (!stats) return { streak: 0, todayNotes: 0, todayFocus: 0, todayTasks: 0, earned: [], next: null }
+  const { streak, todayNotes, todayFocus, todayTasks, todayFocusMinutes, earned, next } = useMemo(() => {
+    if (!stats) return { streak: 0, todayNotes: 0, todayFocus: 0, todayTasks: 0, todayFocusMinutes: 0, earned: [], next: null }
     const today = todayYMD()
     const capMap = toCountMap(stats.capturesByDay)
     const focusMap = toCountMap(stats.focusSessionsByDay)
@@ -185,6 +209,7 @@ export default function RewardPanel({ stats }) {
       todayNotes: capMap[today] || 0,
       todayFocus: focusMap[today] || 0,
       todayTasks: taskMap[today] || 0,
+      todayFocusMinutes: toCountMap(stats.focusMinutesByDay)[today] || 0,
       earned,
       next
     }
@@ -192,17 +217,36 @@ export default function RewardPanel({ stats }) {
 
   const quote = QUOTES[dayOfYear() % QUOTES.length]
 
-  // Four fixed dimensions (Consistency/Capture/Follow-through/Focus). Today's
-  // gauge target adapts to what's actually typical — the median of the last 7
-  // days for that dimension — instead of a flat 3, so the tank stays reachable.
-  // Streak keeps a steady target: it isn't a per-day count to take a median of,
-  // and 7 already lines up with the existing streak_7 badge below.
+  // Five fixed dimensions (Consistency/Capture/Follow-through/Focus/Focus time).
+  // Today's gauge target adapts to what's actually typical — the median of the
+  // last 7 days for that dimension — instead of a flat 3, so the tank stays
+  // reachable. Streak keeps a steady target: it isn't a per-day count to take a
+  // median of, and 7 already lines up with the existing streak_7 badge below.
   const gauges = [
     { label: 'Streak', value: streak, target: 7, color: '#f0d9a3', ...levelInfo(streak) },
     { label: 'Captures', value: todayNotes, target: medianTarget(stats?.capturesByDay), color: '#5eead4', ...levelInfo(stats?.totalNotes) },
     { label: 'Tasks done', value: todayTasks, target: medianTarget(stats?.tasksDoneByDay), color: '#b7a6f7', ...levelInfo(stats?.tasksDone) },
-    { label: 'Focus sessions', value: todayFocus, target: medianTarget(stats?.focusSessionsByDay), color: '#fb923c', ...levelInfo(stats?.focusSessionsTotal) }
+    { label: 'Focus sessions', value: todayFocus, target: medianTarget(stats?.focusSessionsByDay), color: '#fb923c', ...levelInfo(stats?.focusSessionsTotal) },
+    { label: 'Focus time', value: todayFocusMinutes, target: medianTarget(stats?.focusMinutesByDay), color: '#7dd3fc', ...levelInfo(stats?.focusMinutesTotal) }
   ]
+
+  // Week/month totals under the gauges — the same day-arrays already driving the
+  // gauges and badges above, just summed over a wider trailing window instead of
+  // read for today alone.
+  const totals = {
+    week: {
+      notes: sumLastNDays(stats?.capturesByDay, 7),
+      tasks: sumLastNDays(stats?.tasksDoneByDay, 7),
+      focusSessions: sumLastNDays(stats?.focusSessionsByDay, 7),
+      focusMinutes: sumLastNDays(stats?.focusMinutesByDay, 7)
+    },
+    month: {
+      notes: sumLastNDays(stats?.capturesByDay, 30),
+      tasks: sumLastNDays(stats?.tasksDoneByDay, 30),
+      focusSessions: sumLastNDays(stats?.focusSessionsByDay, 30),
+      focusMinutes: sumLastNDays(stats?.focusMinutesByDay, 30)
+    }
+  }
 
   return (
     <div className="card overflow-hidden border-t-2 border-gold-400/40 p-6">
@@ -237,10 +281,23 @@ export default function RewardPanel({ stats }) {
           </div>
         </div>
 
-        <div className="grid grid-cols-2 gap-3 rounded-xl border border-ink-700 bg-ink-950/40 px-3 py-4 sm:grid-cols-4">
-          {gauges.map(g => (
-            <DimensionColumn key={g.label} {...g} />
-          ))}
+        <div className="rounded-xl border border-ink-700 bg-ink-950/40 px-3 py-4">
+          <div className="grid grid-cols-3 gap-3 sm:grid-cols-5">
+            {gauges.map(g => (
+              <DimensionColumn key={g.label} {...g} />
+            ))}
+          </div>
+
+          <div className="mt-4 space-y-1 border-t border-ink-700 pt-3 text-[11px] text-mist-500">
+            <p>
+              <span className="font-medium text-mist-300">This week:</span>{' '}
+              {totals.week.notes} notes &middot; {totals.week.tasks} tasks &middot; {totals.week.focusSessions} focus sessions &middot; {formatMinutes(totals.week.focusMinutes)} focused
+            </p>
+            <p>
+              <span className="font-medium text-mist-300">This month:</span>{' '}
+              {totals.month.notes} notes &middot; {totals.month.tasks} tasks &middot; {totals.month.focusSessions} focus sessions &middot; {formatMinutes(totals.month.focusMinutes)} focused
+            </p>
+          </div>
         </div>
       </div>
     </div>
