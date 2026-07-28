@@ -8,10 +8,11 @@ export default function App({ Component, pageProps }) {
   return (
     <>
       <Head>
-        <title>Second Brain</title>
+        <title>Shore Up</title>
         <meta name="description" content="A private, connected knowledge system." />
         <meta name="robots" content="noindex, nofollow" />
-        <link rel="icon" href="/favicon.svg" type="image/svg+xml" />
+        <link rel="icon" href="/logo.svg" type="image/svg+xml" />
+        <link rel="apple-touch-icon" href="/logo.png" />
       </Head>
       <RouteLoader />
       <ThemeProvider>

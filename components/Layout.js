@@ -44,7 +44,7 @@ export default function Layout({ children, user }) {
         sounds.notification()
         if (typeof window !== 'undefined' && 'Notification' in window) {
           if (Notification.permission === 'granted') {
-            const n = new Notification('Second Brain', { body: freshlyDue[0].message, icon: '/favicon.svg' })
+            const n = new Notification('Shore Up', { body: freshlyDue[0].message, icon: '/logo.png' })
             const target = reminderOpenTarget(freshlyDue[0])
             n.onclick = () => {
               window.focus()
@@ -107,10 +107,8 @@ export default function Layout({ children, user }) {
       <header className="sticky top-0 z-30 border-b border-ink-700/80 bg-ink-950/85 backdrop-blur">
         <div className="mx-auto flex max-w-6xl items-center justify-between gap-6 px-6 py-4">
           <Link href="/work" className="flex items-center gap-2.5">
-            <span className="flex h-7 w-7 items-center justify-center rounded-full border border-emerald-400/50 bg-gradient-to-br from-emerald-500/20 via-violet-500/10 to-gold-500/20 text-xs text-emerald-300 font-serif">
-              SB
-            </span>
-            <span className="font-serif text-xl tracking-wide text-mist-100">Second Brain</span>
+            <img src="/logo.png" alt="" className="h-7 w-7 rounded-full object-cover" />
+            <span className="font-serif text-xl tracking-wide text-mist-100">Shore Up</span>
           </Link>
 
           <nav className="hidden items-center gap-7 md:flex" data-nav="desktop">

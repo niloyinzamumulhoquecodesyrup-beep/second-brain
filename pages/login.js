@@ -39,11 +39,9 @@ export default function Login() {
       <ThemeToggle className="absolute right-6 top-6" />
       <div className="w-full max-w-sm">
         <div className="mb-10 text-center">
-          <div className="mx-auto mb-4 flex h-11 w-11 items-center justify-center rounded-full border border-emerald-400/50 bg-gradient-to-br from-emerald-500/20 via-violet-500/10 to-gold-500/20 font-serif text-sm text-emerald-300">
-            SB
-          </div>
+          <img src="/logo.png" alt="" className="mx-auto mb-4 h-11 w-11 rounded-full object-cover" />
           <p className="label mb-2">Welcome back</p>
-          <h1 className="font-serif text-4xl font-light text-gradient">Second Brain</h1>
+          <h1 className="font-serif text-4xl font-light text-gradient">Shore Up</h1>
         </div>
 
         <form onSubmit={submit} className="card space-y-4 p-7">
