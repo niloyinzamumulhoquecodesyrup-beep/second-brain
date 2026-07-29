@@ -41,7 +41,7 @@ export default function Login() {
         <div className="mb-10 text-center">
           <img src="/logo.png" alt="" className="mx-auto mb-4 h-11 w-11 rounded-full object-cover" />
           <p className="label mb-2">Welcome back</p>
-          <h1 className="font-serif text-4xl font-light text-gradient">Shore Up</h1>
+          <h1 className="font-serif text-4xl font-light text-gradient">Slay Task</h1>
         </div>
 
         <form onSubmit={submit} className="card space-y-4 p-7">

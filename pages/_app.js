@@ -8,7 +8,7 @@ export default function App({ Component, pageProps }) {
   return (
     <>
       <Head>
-        <title>Shore Up</title>
+        <title>Slay Task</title>
         <meta name="description" content="A private, connected knowledge system." />
         <meta name="robots" content="noindex, nofollow" />
         <link rel="icon" href="/logo.svg" type="image/svg+xml" />

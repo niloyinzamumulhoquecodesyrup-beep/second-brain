@@ -157,6 +157,16 @@ export default function FocusPomodoro({ item, bgColorClass, textColorClass, piec
     await onComplete()
   }
 
+  // Backing out without marking the task done must not throw away time already
+  // focused this session -- only the localStorage-persisted clock, not the
+  // server-side log, was ever guaranteed here before this fired.
+  function exit() {
+    clearInterval(intervalRef.current)
+    if (focusSecondsRef.current >= 60) onLogFocus(Math.round(focusSecondsRef.current / 60))
+    clearFocusSession()
+    onExit()
+  }
+
   const total = mode.minutes * 60
   const pct = total > 0 ? (total - secondsLeft) / total : 0
   const R = 84
@@ -167,7 +177,7 @@ export default function FocusPomodoro({ item, bgColorClass, textColorClass, piec
 
   return (
     <div className={`rounded-2xl border border-ink-700 bg-ink-950 p-6 text-center ${textColorClass}`}>
-      <button onClick={onExit} className="mb-1 text-xs text-mist-500 hover:text-mist-300">‹ back to today</button>
+      <button onClick={exit} className="mb-1 text-xs text-mist-500 hover:text-mist-300">‹ back to today</button>
 
       <p className="mt-3 truncate px-4 text-lg font-medium text-mist-100">{headline}</p>
       {showFullTitle && <p className="mt-0.5 truncate px-4 text-xs text-mist-500">{item.title}</p>}

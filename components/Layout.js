@@ -44,7 +44,7 @@ export default function Layout({ children, user }) {
         sounds.notification()
         if (typeof window !== 'undefined' && 'Notification' in window) {
           if (Notification.permission === 'granted') {
-            const n = new Notification('Shore Up', { body: freshlyDue[0].message, icon: '/logo.png' })
+            const n = new Notification('Slay Task', { body: freshlyDue[0].message, icon: '/logo.png' })
             const target = reminderOpenTarget(freshlyDue[0])
             n.onclick = () => {
               window.focus()
@@ -108,7 +108,7 @@ export default function Layout({ children, user }) {
         <div className="mx-auto flex max-w-6xl items-center justify-between gap-6 px-6 py-4">
           <Link href="/work" className="flex items-center gap-2.5">
             <img src="/logo.png" alt="" className="h-7 w-7 rounded-full object-cover" />
-            <span className="font-serif text-xl tracking-wide text-mist-100">Shore Up</span>
+            <span className="font-serif text-xl tracking-wide text-mist-100">Slay Task</span>
           </Link>
 
           <nav className="hidden items-center gap-7 md:flex" data-nav="desktop">
