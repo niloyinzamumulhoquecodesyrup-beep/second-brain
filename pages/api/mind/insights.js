@@ -22,6 +22,9 @@ async function handler(req, res) {
   for (const kind of ['interest_cluster', 'open_loop', 'attention_pattern', 'dormant_revival', 'inferred_goal', 'user_model', 'recommendation']) {
     byKind[kind] = rows.filter(r => r.kind === kind)
   }
+  // interest_cluster carries a metadata.weight ("how much") alongside the cluster
+  // itself ("what") — rank by it so the strongest interest renders first.
+  byKind.interest_cluster.sort((a, b) => (b.metadata?.weight ?? 0) - (a.metadata?.weight ?? 0))
 
   // §6 step 5: the dashboard's staleness banner is keyed off the most recent
   // mind_insights row of any kind, not just overview — a stale overview next to
