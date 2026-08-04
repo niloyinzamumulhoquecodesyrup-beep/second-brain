@@ -127,9 +127,10 @@ function toggleTileFullscreen(el) {
 }
 
 // Phase 2 mesh WebRTC (see migrations/022_mindcord.sql comment + ROOM_CAP in
-// pages/api/mindcord/join.js): STUN only, no TURN -- an accepted gap for some
-// fraction of joins (symmetric NAT / restrictive firewalls), surfaced per-peer
-// below rather than failing silently.
+// pages/api/mindcord/join.js). Fallback default if the Metered TURN fetch (below)
+// hasn't resolved yet or fails -- STUN alone still covers most joins; only symmetric
+// NAT / restrictive firewalls need the relay, surfaced per-peer via peerStatusBadge
+// rather than failing silently.
 const ICE_SERVERS = [{ urls: 'stun:stun.l.google.com:19302' }]
 
 function peerStatusBadge(state) {
@@ -266,6 +267,10 @@ function RoomView({ room, onLeave, identity }) {
   const rosterRef = useRef(new Map())
   const callChannelRef = useRef(null)
   const localStreamRef = useRef(null)
+  // Replaced with Metered's relay servers once /api/mindcord/turn-credentials resolves
+  // (see the signaling effect below); starts as the STUN-only default so a peer
+  // connection opened before that fetch completes still has something to use.
+  const iceServersRef = useRef(ICE_SERVERS)
 
   // Real speaking-level detection (Web Audio analyser per peer + self), driving the
   // tile glow imperatively via classList rather than React state -- this ticks on
@@ -391,7 +396,7 @@ function RoomView({ room, onLeave, identity }) {
     const existing = pcsRef.current.get(peerId)
     if (existing) return existing
 
-    const pc = new RTCPeerConnection({ iceServers: ICE_SERVERS })
+    const pc = new RTCPeerConnection({ iceServers: iceServersRef.current })
     const audioTx = pc.addTransceiver('audio', { direction: 'sendrecv' })
     const videoTx = pc.addTransceiver('video', { direction: 'sendrecv' })
     sendersRef.current.set(peerId, { audio: audioTx.sender, video: videoTx.sender })
@@ -707,6 +712,17 @@ function RoomView({ room, onLeave, identity }) {
     if (!supabase || !myId) return () => { cancelled = true }
 
     audioRafRef.current = requestAnimationFrame(tickAudioLevels)
+
+    // Fetched in parallel with the channel subscribe below (both are network
+    // round-trips) rather than awaited up front, so TURN isn't on the critical path
+    // for chat/presence to come up. Falls back to the STUN-only default already in
+    // iceServersRef if this fails or a signal arrives before it resolves.
+    fetch('/api/mindcord/turn-credentials')
+      .then(r => (r.ok ? r.json() : null))
+      .then(d => {
+        if (!cancelled && Array.isArray(d?.iceServers) && d.iceServers.length) iceServersRef.current = d.iceServers
+      })
+      .catch(() => { /* stay on STUN-only default */ })
 
     const channel = supabase.channel(`mindcord_call:${room.room_id}`, { config: { broadcast: { self: false } } })
     channel.on('broadcast', { event: 'signal' }, ({ payload }) => { if (!cancelled) handleSignal(payload) })
