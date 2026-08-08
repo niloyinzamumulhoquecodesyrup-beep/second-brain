@@ -11,6 +11,12 @@ async function handler(req, res) {
 
   if (req.method === 'PUT') {
     const { title, done, due_date, start_min, duration_min, pieces } = req.body || {}
+    if (start_min !== undefined && start_min !== null && !(start_min >= 0 && start_min < 1440)) {
+      return res.status(400).json({ error: 'start_min out of range' })
+    }
+    if (duration_min !== undefined && duration_min !== null && !(duration_min > 0 && duration_min <= 1440)) {
+      return res.status(400).json({ error: 'duration_min out of range' })
+    }
     const before = await pool.query('SELECT done FROM tasks WHERE id=$1 AND user_id=$2', [id, userId])
     if (!before.rows[0]) return res.status(404).json({ error: 'Not found' })
     const wasDone = before.rows[0].done

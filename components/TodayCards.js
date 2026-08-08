@@ -477,12 +477,18 @@ export default function TodayCards({ tasks, onToggle: onToggleTask, onDelete: on
     setBusy(true)
     const known = finalItems.map(i => i.start_min).filter(v => v != null)
     let cursor = known.length ? Math.min(...known) : 9 * 60
-    await Promise.all(finalItems.map(item => {
+    const updates = []
+    for (const item of finalItems) {
+      // Stop packing once today is full instead of spilling start_min past
+      // midnight (1440) -- the tasks/planner tables both reject that with a
+      // check constraint, and there's no "tomorrow" slot for this view anyway.
+      if (cursor >= 1440) break
       const start_min = cursor
-      const duration_min = item.duration_min ?? 30
+      const duration_min = Math.min(item.duration_min ?? 30, 1440 - cursor)
       cursor += duration_min
-      return persistTime(item, start_min, duration_min)
-    }))
+      updates.push(persistTime(item, start_min, duration_min))
+    }
+    await Promise.all(updates)
     loadPlanner()
     setBusy(false)
     closePopup()
